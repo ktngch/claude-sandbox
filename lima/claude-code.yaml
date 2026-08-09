@@ -62,6 +62,9 @@ provision:
 - mode: user
   file: provision/30-docker.sh
 
+- mode: user
+  file: provision/40-aws-vault.sh
+
 probes:
 - mode: readiness
   description: mise-managed tools (node, claude) to be installed
