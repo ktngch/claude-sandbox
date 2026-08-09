@@ -60,10 +60,10 @@ git config --global --add url."https://github.com/".insteadOf 'ssh://git@github.
 
 # 6. トークン未設定のまま push すると git がユーザー名入力で待ち続けてしまう。
 #    非対話で即エラーにして、エージェントがハングしないようにする。
-#    PATH と同じ理由で ~/.bashrc ではなく ~/.profile 側に置く (CLAUDE.md 不変条件 #4)。
-if ! grep -qF "$GIT_MARKER" "${HOME}/.profile" 2>/dev/null; then
-  echo "claude-sandbox: adding GIT_TERMINAL_PROMPT=0 to ~/.profile"
-  cat >>"${HOME}/.profile" <<EOF
+#    PATH と同じ理由で ~/.zshrc ではなく ~/.zprofile 側に置く (CLAUDE.md 不変条件 #4)。
+if ! grep -qF "$GIT_MARKER" "${HOME}/.zprofile" 2>/dev/null; then
+  echo "claude-sandbox: adding GIT_TERMINAL_PROMPT=0 to ~/.zprofile"
+  cat >>"${HOME}/.zprofile" <<EOF
 
 ${GIT_MARKER}
 export GIT_TERMINAL_PROMPT=0

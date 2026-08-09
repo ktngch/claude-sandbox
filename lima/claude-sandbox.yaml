@@ -42,6 +42,8 @@ ssh:
 # 実行順は data -> system -> user (cloud-init の scripts_per_boot 内)。
 # mise.vm.toml を mode: data に置くだけで 10-mise.sh より先に配置される。
 # いずれも毎ブート実行されるため、各スクリプト側で冪等性を担保している。
+# user 内の番号順は rc ファイルへの追記順でもある: 05 (土台) -> 10 (mise) -> 50 (starship)。
+# starship の配線は mise の PATH が通った後でなければ効かないので、この順序を崩さないこと。
 provision:
 - mode: system
   file: provision/00-system-packages.sh
@@ -52,6 +54,9 @@ provision:
   owner: "{{.User}}"
   permissions: "0644"
   overwrite: true # リポジトリ側の mise.vm.toml を唯一の真実にする
+
+- mode: user
+  file: provision/05-zsh.sh
 
 - mode: user
   file: provision/10-mise.sh
