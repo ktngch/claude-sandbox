@@ -28,11 +28,15 @@ up:
 # ホストのファイルシステム・認証情報に到達する経路を持たないため。
 # lima/claude-sandbox.yaml に mounts を足すと、この前提が崩れる。
 claude: up
-	limactl shell '$(INSTANCE)' -- bash -lc 'cd ~/workspace && exec claude --dangerously-skip-permissions'
+	limactl shell '$(INSTANCE)' -- zsh -lc 'cd ~/workspace && exec claude --dangerously-skip-permissions'
 
 ## shell: VM にログインする
+#
+# --shell が要る。limactl shell は既定で /bin/bash -l を実行し、chsh も $SHELL も見ない
+# (ssh 経由の VS Code Remote-SSH は passwd を見るので、そちらは chsh だけで zsh になる)。
+# フラグは INSTANCE より前に置くこと。後ろに置くと COMMAND 扱いされて壊れる。
 shell: up
-	limactl shell '$(INSTANCE)'
+	limactl shell --shell /usr/bin/zsh '$(INSTANCE)'
 
 ## dev-env: git identity など VM 内の開発環境設定を (再) 適用する
 #
@@ -43,17 +47,22 @@ dev-env:
 	limactl shell '$(INSTANCE)' -- env \
 		GIT_USER_NAME='$(GIT_USER_NAME)' \
 		GIT_USER_EMAIL='$(GIT_USER_EMAIL)' \
-		bash -lc 'bash /tmp/20-dev-env.sh'
+		zsh -lc 'bash /tmp/20-dev-env.sh'
 
 ## reprovision: provision/ 配下のスクリプトだけを再適用する (VM は作り直さない)
+#
+# ログインシェル経由 (zsh -lc) にしているのは ~/.zprofile の PATH を効かせるため。
+# 00 と 05 だけは素の bash で叩く。zsh をまだ持たない VM に対して zsh -lc を使うと
+# ブートストラップで詰むうえ、この 2 つは mise の PATH を必要としない。
 reprovision:
 	limactl copy -r '$(PROVISION)' '$(INSTANCE):/tmp/'
 	limactl shell '$(INSTANCE)' -- sudo bash /tmp/provision/00-system-packages.sh
-	limactl shell '$(INSTANCE)' -- bash -lc 'install -D -m 0644 /tmp/provision/mise.vm.toml ~/.config/mise/config.toml'
-	limactl shell '$(INSTANCE)' -- bash -lc 'bash /tmp/provision/10-mise.sh'
-	limactl shell '$(INSTANCE)' -- bash -lc 'bash /tmp/provision/30-docker.sh'
-	limactl shell '$(INSTANCE)' -- bash -lc 'bash /tmp/provision/40-aws-vault.sh'
-	limactl shell '$(INSTANCE)' -- bash -lc 'bash /tmp/provision/50-starship.sh'
+	limactl shell '$(INSTANCE)' -- bash /tmp/provision/05-zsh.sh
+	limactl shell '$(INSTANCE)' -- zsh -lc 'install -D -m 0644 /tmp/provision/mise.vm.toml ~/.config/mise/config.toml'
+	limactl shell '$(INSTANCE)' -- zsh -lc 'bash /tmp/provision/10-mise.sh'
+	limactl shell '$(INSTANCE)' -- zsh -lc 'bash /tmp/provision/30-docker.sh'
+	limactl shell '$(INSTANCE)' -- zsh -lc 'bash /tmp/provision/40-aws-vault.sh'
+	limactl shell '$(INSTANCE)' -- zsh -lc 'bash /tmp/provision/50-starship.sh'
 	@$(MAKE) --no-print-directory dev-env
 
 ## recreate: VM を破棄して作り直す ($(TEMPLATE) 自体の変更を反映するときに使う)

@@ -16,7 +16,7 @@ set -euo pipefail
 AWS_MARKER='# >>> claude-sandbox aws-vault >>>'
 AWS_END_MARKER='# <<< claude-sandbox aws-vault <<<'
 
-# CLAUDE.md 不変条件 #4 の通り .bashrc ではなく .profile に置く
+# CLAUDE.md 不変条件 #4 の通り .zshrc ではなく .zprofile に置く
 # (非対話の `limactl shell -- cmd` にも効かせるため)。
 #
 # マーカーの有無ではなく中身を比較する。存在チェックだけだと、後からこのブロックに
@@ -31,15 +31,15 @@ ${AWS_END_MARKER}
 EOF
 )
 
-touch "${HOME}/.profile"
-CURRENT_BLOCK=$(sed -n "/^${AWS_MARKER}\$/,/^${AWS_END_MARKER}\$/p" "${HOME}/.profile")
+touch "${HOME}/.zprofile"
+CURRENT_BLOCK=$(sed -n "/^${AWS_MARKER}\$/,/^${AWS_END_MARKER}\$/p" "${HOME}/.zprofile")
 
 if [ "$CURRENT_BLOCK" != "$DESIRED_BLOCK" ]; then
-  echo "claude-sandbox: writing the aws-vault block to ~/.profile"
+  echo "claude-sandbox: writing the aws-vault block to ~/.zprofile"
   if [ -n "$CURRENT_BLOCK" ]; then
-    sed -i "/^${AWS_MARKER}\$/,/^${AWS_END_MARKER}\$/d" "${HOME}/.profile"
+    sed -i "/^${AWS_MARKER}\$/,/^${AWS_END_MARKER}\$/d" "${HOME}/.zprofile"
   fi
-  printf '\n%s\n' "$DESIRED_BLOCK" >>"${HOME}/.profile"
+  printf '\n%s\n' "$DESIRED_BLOCK" >>"${HOME}/.zprofile"
 fi
 
 echo "claude-sandbox: aws-vault backend = file (~/.awsvault/keys/)"

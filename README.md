@@ -54,7 +54,7 @@ ghq get github.com/owner/repo             # ~/workspace/github.com/owner/repo �
 cd "$(ghq root)/github.com/owner/repo"
 ```
 
-環境変数を読むだけの git credential helper（`~/.local/bin/git-credential-github-token`）が仕込んであるため、トークンが**ディスクに書かれることはない**。`make shell` のたびに `export` し直す運用が既定。毎回打ちたくない場合は `~/.bashrc` に書けば永続化できるが、VM のディスクに平文で残る点は理解した上で選ぶこと。
+環境変数を読むだけの git credential helper（`~/.local/bin/git-credential-github-token`）が仕込んであるため、トークンが**ディスクに書かれることはない**。`make shell` のたびに `export` し直す運用が既定。毎回打ちたくない場合は `~/.zshrc` に書けば永続化できるが、VM のディスクに平文で残る点は理解した上で選ぶこと。
 
 トークン未設定のまま push すると、入力待ちでハングせず即座にエラーになる（`GIT_TERMINAL_PROMPT=0`）。
 
@@ -124,11 +124,11 @@ make ssh-config   # 表示された Include 行を ~/.ssh/config に追記する
 
 ## 入っているもの
 
-システムパッケージ（apt）は `curl` / `git` / `build-essential` などの土台と docker のみ。ランタイムと CLI は [mise](https://mise.jdx.dev/) が管理する:
+システムパッケージ（apt）は `curl` / `git` / `build-essential` などの土台と、docker・zsh のみ。ランタイムと CLI は [mise](https://mise.jdx.dev/) が管理する:
 
 `node` (lts), `claude`, `gh`, `ghq`, `ripgrep`, `fd`, `jq`, `starship`, `python` (3.13), `uv`, `go`, `aws-vault`, `awscli`
 
-`starship` は `make shell` などの対話シェルで自動的に有効になる（`50-starship.sh` が `~/.bashrc` に配線する）。設定ファイルは置いていないので既定のプリセットで動く。
+ログインシェルは **zsh**（`05-zsh.sh` が `chsh` する）。履歴・補完・Emacs キーバインドは設定済みで、`starship` のプロンプトも `make shell` などの対話シェルで自動的に有効になる（`50-starship.sh` が `~/.zshrc` に配線する）。starship の設定ファイルは置いていないので既定のプリセットで動く。
 
 `ghq` の clone 先（`ghq.root`）は `~/workspace` に設定してあるので、`ghq get` したリポジトリは `~/workspace/github.com/owner/repo` に並ぶ。`make claude` はこの `~/workspace` で起動する。
 
@@ -157,6 +157,7 @@ lima/claude-sandbox.yaml        Lima テンプレート (VM のスペック・�
 lima/provision/
   00-system-packages.sh         apt で土台のパッケージを入れる   (root)
   mise.vm.toml                  VM のツール定義 → VM の ~/.config/mise/config.toml
+  05-zsh.sh                     ログインシェルを zsh にし、rc ファイルの土台を作る
   10-mise.sh                    mise 本体の導入とツールのインストール
   20-dev-env.sh                 ~/workspace / git identity / GitHub HTTPS 認証の設定
   30-docker.sh                  docker.socket の所有者設定とサービス有効化
