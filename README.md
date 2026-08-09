@@ -88,7 +88,7 @@ gnome-keyring（Secret Service）を使う構成もこの VM では動くが、�
 | `make shell` | VM にログイン |
 | `make dev-env` | git identity など VM 内の開発環境設定を再適用する |
 | `make reprovision` | `lima/provision/` の変更だけを再適用する（VM は作り直さない） |
-| `make recreate` | VM を破棄して作り直す（`lima/claude-code.yaml` の変更を反映するとき） |
+| `make recreate` | VM を破棄して作り直す（`lima/claude-sandbox.yaml` の変更を反映するとき） |
 | `make stop` / `make destroy` | 停止 / 削除 |
 | `make status` / `make validate` | 状態表示 / テンプレート検証 |
 | `make ssh-config` | VS Code Remote-SSH 用の設定行を表示 |
@@ -118,7 +118,7 @@ PAT を `export` した時点で、VM 内の Claude Code はそのトークン�
 make ssh-config   # 表示された Include 行を ~/.ssh/config に追記する
 ```
 
-追記後は `ssh lima-claude-code` で接続でき、VS Code の Remote-SSH からも同じホスト名が選べる。
+追記後は `ssh lima-claude-sandbox` で接続でき、VS Code の Remote-SSH からも同じホスト名が選べる。
 
 ## 入っているもの
 
@@ -151,7 +151,7 @@ docker run --rm hello-world
 ```
 Makefile                        1 コマンドのエントリポイント
 mise.toml                       ホスト側の開発ツール (limactl / shellcheck / jq / actionlint / zizmor / pinact)
-lima/claude-code.yaml           Lima テンプレート (VM のスペック・隔離設定)
+lima/claude-sandbox.yaml        Lima テンプレート (VM のスペック・隔離設定)
 lima/provision/
   00-system-packages.sh         apt で土台のパッケージを入れる   (root)
   mise.vm.toml                  VM のツール定義 → VM の ~/.config/mise/config.toml

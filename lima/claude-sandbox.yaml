@@ -83,7 +83,7 @@ probes:
   hint: |
     mise によるツールのインストールが完了しませんでした。
     ゲスト内の /var/log/cloud-init-output.log を確認してください:
-      limactl shell claude-code -- sudo tail -100 /var/log/cloud-init-output.log
+      limactl shell claude-sandbox -- sudo tail -100 /var/log/cloud-init-output.log
 
 - mode: readiness
   description: docker daemon to be reachable from the lima user
@@ -97,8 +97,8 @@ probes:
   hint: |
     docker のソケットに繋がりませんでした。
     ゲスト内の /var/log/cloud-init-output.log と docker のログを確認してください:
-      limactl shell claude-code -- sudo tail -100 /var/log/cloud-init-output.log
-      limactl shell claude-code -- sudo journalctl -u docker.service -n 100
+      limactl shell claude-sandbox -- sudo tail -100 /var/log/cloud-init-output.log
+      limactl shell claude-sandbox -- sudo journalctl -u docker.service -n 100
 
 message: |
   VM の準備ができました。

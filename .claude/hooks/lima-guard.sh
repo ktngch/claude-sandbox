@@ -14,7 +14,7 @@ file=$(printf '%s' "$payload" | jq -r '.tool_response.filePath // .tool_input.fi
 root=$(cd "$(dirname "$file")" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null) || exit 0
 case "$file" in "$root"/lima/*) ;; *) exit 0 ;; esac
 
-yaml="$root/lima/claude-code.yaml"
+yaml="$root/lima/claude-sandbox.yaml"
 [ -f "$yaml" ] || exit 0
 problems=""
 
@@ -30,7 +30,7 @@ elif printf '%s' "$out" | grep -q 'level=warning'; then
   problems+="詳細: $(printf '%s' "$out" | grep -o 'error=.*' | head -1)\n"
 fi
 
-grep -qE '^mounts: \[\]' "$yaml"                || problems+="lima/claude-code.yaml の 'mounts: []' が失われています (不変条件 #1)。\n"
+grep -qE '^mounts: \[\]' "$yaml"                || problems+="lima/claude-sandbox.yaml の 'mounts: []' が失われています (不変条件 #1)。\n"
 grep -qE '^\s*loadDotSSHPubKeys: false' "$yaml" || problems+="ssh.loadDotSSHPubKeys が false ではありません (不変条件 #1)。\n"
 grep -qE '^\s*forwardAgent: false' "$yaml"      || problems+="ssh.forwardAgent が false ではありません (不変条件 #1)。\n"
 ! grep -q 'template:_default/mounts' "$yaml"    || problems+="base に template:_default/mounts が入っています (ホームが RO マウントされます)。\n"
