@@ -11,11 +11,10 @@ macOS 上に Lima で Claude Code 実行用の隔離 VM を立てるための設
 ```sh
 make validate       # Lima テンプレートの検証。YAML やスクリプトを触ったら必ず最初に通す
 make up             # 作成 (初回のみ) + 起動 + プロビジョニング
-make claude         # up してから VM 内の ~/workspace で claude を起動する (この VM の主目的)
+make shell          # VM にログインする (この VM の主目的。claude はログインしてから中で叩く)
 make reprovision    # lima/provision/ の変更だけを再適用する
 make recreate       # 破棄して作り直す
 make status         # 状態確認
-make shell          # VM にログインする
 make stop           # 停止する (ディスクは残る)
 make destroy        # 削除する (VM 内のデータと claude の認証情報も消える)
 make ssh-config     # VS Code Remote-SSH 用の Include 行を表示する
@@ -40,7 +39,7 @@ actionlint -color && GH_TOKEN=$(gh auth token) zizmor .github/workflows && pinac
 - **`lima/provision/` を変えた** → `make reprovision`。スクリプトを VM に転送して直接実行するので数十秒で終わる。
 - **`lima/claude-sandbox.yaml` を変えた** → `make recreate`。Lima は作成時にテンプレートの内容（provision スクリプトの中身を含む）をインスタンス側 `~/.lima/<name>/lima.yaml` にコピーするため、既存インスタンスに `make up` してもリポジトリ側の yaml 変更は読まれない。
 
-`make reprovision` は yaml の `mode: data` に相当する処理（`mise.vm.toml` → `~/.config/mise/config.toml` の配置）も自前で再現している。yaml 側の provision エントリを増減させたら、Makefile の `reprovision` ターゲットも合わせて更新すること。
+`make reprovision` は yaml の `mode: data` に相当する処理（`mise.vm.toml` → `~/.config/mise/config.toml`、`sheldon.plugins.toml` → `~/.config/sheldon/plugins.toml` の配置）も自前で再現している。yaml 側の provision エントリを増減させたら、Makefile の `reprovision` ターゲットも合わせて更新すること。
 
 `20-dev-env.sh` だけは `dev-env` ターゲットに切り出してあり、`up` と `reprovision` の両方がこれを呼ぶ。ホストの git identity を env で流し込む唯一の経路なので、片方から外さないこと。
 
@@ -52,11 +51,11 @@ Lima の `param` はインスタンス**作成時**にしか渡せず、既存 V
 
 ### 1. 隔離モデルを単独で壊さない
 
-`lima/claude-sandbox.yaml` の `mounts: []`、`ssh.loadDotSSHPubKeys: false`、`ssh.forwardAgent: false` は、`make claude` が `--dangerously-skip-permissions` を渡している前提そのもの。マウントや agent forwarding を足すと、VM 内のエージェントがホストの認証情報やソースに到達できるようになる。
+`lima/claude-sandbox.yaml` の `mounts: []`、`ssh.loadDotSSHPubKeys: false`、`ssh.forwardAgent: false` は、VM 内で `claude --dangerously-skip-permissions` を常用できる前提そのもの。マウントや agent forwarding を足すと、VM 内のエージェントがホストの認証情報やソースに到達できるようになる。
 
 `base:` に `template:_default/mounts` を追加してはいけない（ホームが読み取り専用でマウントされる）。他の Lima テンプレートをコピーしてくるときに紛れ込みやすい。
 
-隔離を緩める必要が出たら、`make claude` から `--dangerously-skip-permissions` を外すこととセットで検討する。
+隔離を緩める必要が出たら、`--dangerously-skip-permissions` を付けての常用をやめることとセットで検討する。このフラグを付ける場所は Makefile にも provision にも無く、ユーザーが VM 内で手で打つ。
 
 GitHub への認証は **HTTPS + 環境変数の fine-grained PAT** だけを経路にする。「push できない」を ssh 鍵の配置や `forwardAgent: true` で解決しないこと。トークンはユーザーが VM 内で `export` するものであり、ホスト側（Makefile・yaml・`~/.lima/<name>/`）には一切書かない。
 
@@ -75,10 +74,13 @@ Lima の provision は cloud-init の `scripts_per_boot` として登録され�
 - `30-docker.sh` — `docker.socket` の drop-in は**内容を比較して差分があるときだけ**書き、書き換えたときだけ `daemon-reload` とサービス再起動を行う（毎ブート restart するとブートが遅くなる）。ソケットの権限は `usermod -aG docker` ではなく `SocketUser` で与える。補助グループは SSH 認証時に確定し、Lima は SSH 接続を ControlMaster で多重化するため、グループ追加は `make reprovision` 直後のセッションに反映されない（VM を再起動するまで permission denied になる）。
 - `40-aws-vault.sh` — `~/.zprofile` のブロックは、マーカーの有無ではなく**中身を比較して差分があるときだけ** `sed` で消してから書き直す（`20-dev-env.sh` の `grep -qF` 方式だと、後から export を足したときに既存 VM へ伝播しない）。
 - `50-starship.sh` — `40-aws-vault.sh` と同じ**中身の比較**方式。書き込み先は `~/.zshrc`（不変条件 #4 の例外）。ブロックは削除してから末尾に追記し直すので、`10-mise.sh` が書く mise ブロックより必ず後ろに来る（`mise activate` 後の PATH でないと `command -v starship` が通らない）。
+- `60-sheldon.sh` — `50-starship.sh` と同じ**中身の比較**方式で `~/.zshrc` に書く（不変条件 #4 の例外）。番号が最後なのは、`sheldon source` が読み込む zsh-syntax-highlighting が upstream の要求で「最後に source される」必要があるため（`starship init zsh` が定義する ZLE ウィジェットより後でなければならない）。**この位置から動かさないこと。** プラグインの取得は `sheldon lock` を provision 時に走らせて済ませる（対話ログインまで持ち越すと、初回の `sheldon source` が clone の進捗を出して「`~/.zshrc` は何も出力しない」を破る）。`sheldon lock` は clone 済みのソースをスキップする（更新は `--update` のときだけ）ので、`mise install` と同じ理由でスタンプは置かない。
 
 ### 3. provision スクリプト内で `{{` を 2 個続けて書かない
 
 `provision[].file` で読み込まれたスクリプトは Lima 側で Go テンプレートとして解析される。シェルのパターンマッチ等で `{{` がリテラルとして現れると `unterminated character constant` でテンプレート処理が失敗し、**警告だけ出してそのファイルの `{{.Param.*}}` 展開が無効のまま通過する**（`make validate` は OK と表示される）。`make validate` の警告行は見逃さないこと。
+
+これは `mode: data` で配る設定ファイルにも同じく効く（`file:` 経由で読まれるものはすべて対象）。`sheldon.plugins.toml` に sheldon 慣用の `use = [...]`（中括弧 2 個で始まるテンプレート記法でプラグイン名を埋めるもの）を書かないのはこのため。既定の `use` パターンで解決できるプラグインだけを入れる。
 
 ### 4. env と PATH は `~/.zprofile` 側で通す
 
@@ -96,7 +98,7 @@ VM のログインシェルは zsh（`05-zsh.sh` が `chsh` する）。zsh は 
 
 `~/.zshrc` は Claude Code のシェルスナップショット経由で非対話でも source されうるので、**何も出力しない**こと（`50-starship.sh` の `command -v starship` ガードと同じ理由）。
 
-Makefile がログインシェルを起動する箇所（`claude` / `dev-env` / `reprovision`）は `zsh -lc` にしてある。例外は `00-system-packages.sh` と `05-zsh.sh` を叩く 2 行で、こちらは素の `bash` で実行する。zsh をまだ持たない VM に `zsh -lc` を使うとブートストラップで詰むため。
+Makefile がログインシェルを起動する箇所（`dev-env` / `reprovision`）は `zsh -lc` にしてある。例外は `00-system-packages.sh` と `05-zsh.sh` を叩く 2 行で、こちらは素の `bash` で実行する。zsh をまだ持たない VM に `zsh -lc` を使うとブートストラップで詰むため。
 
 ### 5. `limactl shell` は既定で `/bin/bash -l` を実行する
 
@@ -106,7 +108,7 @@ Makefile がログインシェルを起動する箇所（`claude` / `dev-env` / 
 
 `chsh` が無意味なわけではない。ssh を直接使う経路（VS Code Remote-SSH、`ssh lima-<name>`）は passwd を見るので zsh になり、VM 内の `$SHELL` も zsh になる（Claude Code のシェルスナップショットが見るのはこちら）。
 
-`make claude` / `dev-env` / `reprovision` は `-- zsh -lc '...'` と明示的に zsh を起動しているので `--shell` は要らない。
+`dev-env` / `reprovision` は `-- zsh -lc '...'` と明示的に zsh を起動しているので `--shell` は要らない。
 
 ### 6. provision スクリプトの shebang は `#!/bin/bash` のまま
 
@@ -168,6 +170,8 @@ VM 側は使い捨て前提なので `latest` 中心、ホスト側は再現性�
 VM 側のランタイムや CLI は原則すべて mise 管理下に置く。apt は mise で入らない土台（コンパイラ、共有ライブラリ等）だけに留める。追加前に `mise registry | grep <name>` で登録名を確認すること（`limactl` ではなく `lima` のように、コマンド名と登録名がずれることがある）。
 
 `lima/provision/mise.vm.toml` を `mise.toml` に戻さないこと。その名前だと `lima/provision/` を cwd にしたときに mise がホスト側の設定として読んでしまい、VM 用のツール定義がホストに漏れる。
+
+zsh のプラグインは mise ではなく **sheldon** の担当で、定義は `lima/provision/sheldon.plugins.toml`（VM の `~/.config/sheldon/plugins.toml` に `mode: data` で配る）。mise 側に入るのは sheldon 本体だけ。ファイル名に `.vm` を挟んでいないのは、sheldon が mise と違って cwd の上位探索をせず、ホスト側に漏れる経路が無いため。プラグインを足すときは不変条件 #3 の中括弧制限に注意する。
 
 docker（`docker.io` / `docker-buildx` / `docker-compose-v2`）はデーモン + systemd 管理で mise に載らないため、`00-system-packages.sh` の `PACKAGES` に置いている例外。`zsh` も mise registry に登録が無いので同じく apt 側の例外（配線と `chsh` は `05-zsh.sh`）。同種の例外を足すときも、パッケージ追加は `PACKAGES` に入れる（sha256 スタンプが自動で再実行を引く）だけにして、サービス設定やシェル配線は別スクリプトに切り出す。
 

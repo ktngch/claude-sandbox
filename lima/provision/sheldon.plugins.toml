@@ -1,0 +1,24 @@
+# VM 内の ~/.config/sheldon/plugins.toml として配置される (lima の provision mode: data)。
+# overwrite: true なので、このファイルが唯一の真実。VM 内で直接編集しても次回ブートで戻る。
+# プラグインを足すときはここに追記して `make reprovision` (または `make recreate`)。
+#
+# ファイル名に .vm を挟んでいないのは、sheldon が mise と違って cwd の上位探索をせず
+# ~/.config/sheldon/plugins.toml しか読まないため。ホスト側に漏れる経路が無い。
+#
+# use = [...] は書かないこと (CLAUDE.md 不変条件 #3)。sheldon の慣用形は中括弧 2 個で
+# 始まるテンプレート記法で、Lima の Go テンプレート解析を壊す。両プラグインとも
+# <name>.plugin.zsh を持つので、既定の use パターンでそのまま解決できる。
+#
+# バージョンは固定しない (rev / tag を書かない)。VM は使い捨て前提で、
+# mise.vm.toml 側も latest 中心という方針に揃えている。
+
+shell = "zsh"
+
+# 書いた順がそのまま source 順になる。
+# zsh-syntax-highlighting は upstream が "must be the last plugin sourced" と
+# 明記しているので、末尾から動かさないこと。
+[plugins.zsh-autosuggestions]
+github = "zsh-users/zsh-autosuggestions"
+
+[plugins.zsh-syntax-highlighting]
+github = "zsh-users/zsh-syntax-highlighting"
