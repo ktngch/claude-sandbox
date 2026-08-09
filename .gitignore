@@ -1,0 +1,19 @@
+# このリポジトリの成果物は Lima テンプレート・シェルスクリプト・Makefile だけで、
+# ビルド生成物は出ない。ここに並べているのは「うっかり公開してしまうと困るもの」だけ。
+
+# Claude Code がローカルに書く設定 (.claude/settings.json はリポジトリの共有設定なので追跡する)
+.claude/settings.local.json
+
+# mise のローカル上書き。ルートの mise.toml はピン留めを共有するので追跡する。
+mise.local.toml
+.mise.local.toml
+
+# クレデンシャルの類。CLAUDE.md 不変条件 #1 のとおり PAT も
+# AWS_VAULT_FILE_PASSPHRASE もホスト側に置かない方針だが、事故の保険として。
+.env
+.env.*
+*.pem
+*.key
+
+# macOS
+.DS_Store
