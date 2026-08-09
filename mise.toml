@@ -13,4 +13,4 @@ jq         = "1.8.2"  # .claude/hooks/ の全スクリプトが必須にして�
 # .claude/hooks/workflow-lint.sh が同じピンを使う。
 actionlint = "1.7.12" # ワークフローの静的解析 (run: ブロックは shellcheck に委譲される)
 zizmor     = "1.29.0" # ワークフローのセキュリティ監査
-pinact     = "4.1.0"  # uses: の SHA ピン留め。ピンの更新は手書きせずこれを流す
+pinact     = "4.1.1"  # uses: の SHA ピン留め。ピンの更新は手書きせずこれを流す
