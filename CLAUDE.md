@@ -84,18 +84,26 @@ VM 内で走る claude 側（`--dangerously-skip-permissions`）にはハーネ�
 
 タグは動かせるので、`actions/checkout@v5` のような参照はサプライチェーン上の穴になる。`uses:` はすべて `owner/repo@<40桁SHA> # vX.Y.Z` の形にしてあり、zizmor の `unpinned-uses` と CI の `pinact run --check` が両方から見張っている。
 
-**SHA を手で書かないこと。** 追加・更新はローカルで `GITHUB_TOKEN=$(gh auth token) pinact run` を流して解決させる（横のバージョンコメントもここで一緒に付く。手書きするとコメントと SHA がズレて `--check` が落ちる）。
+**SHA を手で書かないこと。** 既存の `uses:` の更新は Renovate（後述）が自動で PR にする。新しく `uses:` を足したときだけ、ローカルで `GITHUB_TOKEN=$(gh auth token) pinact run` を流して解決させる（横のバージョンコメントもここで一緒に付く。手書きするとコメントと SHA がズレて `--check` が落ちる）。タグを書いて pinact に解決させる方式なので、`renovatebot/github-action` のようにメジャータグ（`@v46`）を持たないアクションは、フルタグ（`@v46.2.1`）で書いてから流すこと。
 
 `actions/checkout` には `persist-credentials: false` を付ける（zizmor の `artipacked`）。このリポジトリの CI は push しないので、`.git/config` に認証情報を残す理由が無い。
+
+## 依存の更新は Renovate に任せる
+
+`.github/workflows/renovate.yml`（self-hosted、毎日 05:00 JST）＋ `renovate.jsonc`（設定本体）。GitHub App のトークンで動かしているのは、`GITHUB_TOKEN` で作った PR が `pull_request` トリガーのワークフローを起動できず、CI green を前提にした automerge が成立しないため。App の secret（`RENOVATE_APP_ID` / `RENOVATE_APP_PRIVATE_KEY`）はリポジトリの Actions secrets にあり、ホスト側のファイルには置かない。
+
+`renovate.jsonc` で明示的に落としている `lima/provision/mise.vm.toml` のルールを消さないこと。Renovate の mise manager の既定パターン `**/{,.}mise{,.*}.toml` はこのファイル名にも一致するため、ルールを外すと VM 内のツール（`python` のピン等）に黙って PR が飛ぶようになる。
+
+`config:best-practices` の `helpers:pinGitHubActionDigests` が書く形は pinact の期待する形と同じなので、Renovate の PR でも `pinact run --check` は通る。設定を変えたら `npx --yes --package renovate -- renovate-config-validator --strict --no-global renovate.jsonc` で検証する（CI では回していない）。
 
 ## ツールの追加
 
 mise の設定ファイルが 2 つある。**どちらに足すのかを取り違えないこと。**
 
-| ファイル | 何が入るか | 反映方法 |
-| --- | --- | --- |
-| `lima/provision/mise.vm.toml` | **VM 内**のランタイム・CLI | `make reprovision` |
-| `mise.toml`（リポジトリルート） | **ホスト側**でこのリポジトリを開発するためのツール（`limactl` / `shellcheck` / `jq`） | `mise install` |
+| ファイル | 何が入るか | 反映方法 | Renovate |
+| --- | --- | --- | --- |
+| `lima/provision/mise.vm.toml` | **VM 内**のランタイム・CLI | `make reprovision` | 対象外（`renovate.jsonc` で無効化） |
+| `mise.toml`（リポジトリルート） | **ホスト側**でこのリポジトリを開発するためのツール（`limactl` / `shellcheck` / `jq`） | `mise install` | 対象 |
 
 VM 側は使い捨て前提なので `latest` 中心、ホスト側は再現性を優先してバージョンをピン留めする、という使い分けにしている。ホスト側の `lima` を下げると既存インスタンス（`~/.lima/<name>`）が壊れうるので、上げる方向にだけ動かすこと。
 

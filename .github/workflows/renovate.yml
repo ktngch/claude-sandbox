@@ -1,0 +1,67 @@
+# Self-hosted Renovate。GITHUB_TOKEN ではなく専用 GitHub App のトークンを使う理由:
+#   GITHUB_TOKEN で作った PR は pull_request トリガーの workflow を起動できない
+#   (GitHub の仕様、再帰実行防止)。専用 App のトークンならこの制限を受けない。
+#   このリポジトリの CI (lima-validate / shellcheck / actions-lint) は全部 pull_request
+#   トリガーなので、これが renovate.jsonc の automerge (CI green が前提) の成立条件そのもの。
+#
+# 設定本体は renovate.jsonc (リポジトリルート)。ここでは self-host 固有の設定
+# (platform/repositories) だけを env で渡し、リポジトリ設定ファイルはポータブルなまま保つ。
+name: renovate
+
+# run-name は書かない。既存ワークフローのものは github.event.pull_request.* を参照しており、
+# schedule / workflow_dispatch では空になるだけで意味が無い。
+
+on:
+  schedule:
+  - cron: '0 20 * * *' # 毎日 05:00 JST (UTC+9) に実行
+  workflow_dispatch: {} # 手動実行用
+
+# 既定は最小権限。実際の書き込み (ブランチ作成/PR/issue) は専用 App のトークンで行う。
+permissions:
+  contents: read
+
+# 実行中の run を次のスケジュールで上書きしない。
+# 他のワークフローと違って cancel-in-progress: false なのは、PR 作成の途中で
+# 打ち切られると中途半端なブランチが残るため。
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    steps:
+    # Renovate 自身はリポジトリを API 経由で clone するので checkout は必須ではないが、
+    # renovatebot/github-action の公式例が checkout 込みなのでそれに倣う。
+    # persist-credentials: false は zizmor の artipacked 対応。
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      with:
+        persist-credentials: false
+
+    # RENOVATE_APP_ID / RENOVATE_APP_PRIVATE_KEY はこのリポジトリ用に作成した GitHub App のもの。
+    #
+    # 後継の client-id 入力ではなく deprecated な app-id を使っているのは、actionlint 1.7.12 の
+    # 同梱メタデータがまだ client-id を知らず「未定義の入力」として落とすため。アクション側は
+    # `core.getInput("client-id") || core.getInput("app-id")` と読んで JWT の iss にそのまま渡す
+    # ので、App ID / Client ID のどちらを入れてあっても挙動は同じ。
+    - name: Generate a token
+      id: app-token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+      with:
+        app-id: ${{ secrets.RENOVATE_APP_ID }}
+        private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+        # App のインストール権限をそのまま継承させず、このジョブで使う分だけに絞る (zizmor 対策)。
+        permission-contents: write
+        permission-issues: write
+        permission-pull-requests: write
+        permission-workflows: write
+        permission-checks: write
+        permission-statuses: write
+
+    - name: Self-hosted Renovate
+      uses: renovatebot/github-action@316d7cd859606d6039a2182b7d69199e9b036835 # v46.2.1
+      env:
+        RENOVATE_PLATFORM: github
+        RENOVATE_REPOSITORIES: ${{ github.repository }}
+      with:
+        token: ${{ steps.app-token.outputs.token }}

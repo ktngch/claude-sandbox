@@ -17,7 +17,9 @@ mise trust && mise install
 
 これで `limactl` に加えて、`.claude/hooks/` と CI が使う `shellcheck` / `jq` / `actionlint` / `zizmor` / `pinact` も揃う。
 
-GitHub Actions の `uses:` は SHA でピン留めしてある。更新するときは手で SHA を書かず、`pinact` に解決させる:
+依存（`mise.toml` のツールと GitHub Actions の `uses:`）の更新は Renovate が毎日 05:00 JST に見て PR にする。設定は `renovate.jsonc`、実行は `.github/workflows/renovate.yml`。digest / pin / patch の更新は CI が green なら自動でマージされ、それ以外は Dependency Dashboard の issue から操作できる。VM 内のツール（`lima/provision/mise.vm.toml`）は使い捨て前提なので対象外。
+
+GitHub Actions の `uses:` は SHA でピン留めしてある。新しく足すときは手で SHA を書かず、`pinact` に解決させる（既存分の更新は Renovate がやる）:
 
 ```sh
 GITHUB_TOKEN=$(gh auth token) pinact run
