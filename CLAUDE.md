@@ -13,6 +13,7 @@ make validate       # Lima テンプレートの検証。YAML やスクリプト
 make up             # 作成 (初回のみ) + 起動 + プロビジョニング
 make shell          # VM にログインする (この VM の主目的。claude はログインしてから中で叩く)
 make reprovision    # lima/provision/ の変更だけを再適用する
+make dev-env        # ホストの git identity だけを VM に再適用する
 make recreate       # 破棄して作り直す
 make status         # 状態確認
 make stop           # 停止する (ディスクは残る)
@@ -28,7 +29,10 @@ hook は「今編集したファイル」にしか走らないので、まとめ
 ```sh
 git ls-files -z '*.sh' | xargs -0 -n1 bash -n && git ls-files -z '*.sh' | xargs -0 shellcheck
 actionlint -color && GH_TOKEN=$(gh auth token) zizmor .github/workflows && pinact run --check
+printf '{"tool_input":{"file_path":"%s"}}' "$PWD/lima/claude-sandbox.yaml" | .claude/hooks/lima-guard.sh
 ```
+
+最後の 1 行は `lima-validate.yml` がやっていることと同じ（偽の hook ペイロードを流し込む）。hook はパスからリポジトリルートを求めるので、`file_path` は**絶対パス**で渡すこと。
 
 テストフレームワークは無い。検証は実際に VM を起動して確かめる。
 
@@ -131,8 +135,8 @@ hook と同じ検査を、PR でリポジトリ全体に対してもう一度回
 
 | ワークフロー | 何を見るか | `paths:` |
 | --- | --- | --- |
-| `lima-validate.yml` | `limactl validate` + `lima-guard.sh` | `lima/**`, `.claude/hooks/lima-guard.sh`, `mise.toml` |
-| `shellcheck.yml` | `git ls-files '*.sh'` 全数に `bash -n` + `shellcheck` | `**.sh`, `mise.toml` |
+| `lima-validate.yml` | `limactl validate` + `lima-guard.sh` | `lima/**`, `.claude/hooks/lima-guard.sh`, `mise.toml`, 自身 |
+| `shellcheck.yml` | `git ls-files '*.sh'` 全数に `bash -n` + `shellcheck` | `**.sh`, `mise.toml`, 自身 |
 | `actions-lint.yml` | `actionlint` + `zizmor`（トークン付きでオンライン監査も）+ `pinact run --check` | `.github/workflows/**`, `mise.toml` |
 | `renovate.yml` | 依存更新。`schedule` / `workflow_dispatch` のみ | — |
 
