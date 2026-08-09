@@ -18,8 +18,12 @@ ripgrep = "latest"
 fd      = "latest"
 jq      = "latest"
 
-# シェルのプロンプト装飾。~/.bashrc への配線は 50-starship.sh
+# シェルのプロンプト装飾。~/.zshrc への配線は 50-starship.sh
 starship = "latest"
+
+# zsh のプラグインマネージャ。~/.zshrc への配線は 60-sheldon.sh、
+# 入れるプラグインの定義は同じディレクトリの sheldon.plugins.toml
+sheldon = "latest"
 
 # ランタイム
 python  = "3.13"

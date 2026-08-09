@@ -29,10 +29,16 @@ GITHUB_TOKEN=$(gh auth token) pinact run
 
 ```sh
 make up       # VM を作成・起動し、必要なツールを全部入れる (初回 10 分程度)
-make claude   # VM 内の ~/workspace で claude を起動する
+make shell    # VM にログインする
 ```
 
-初回の `make claude` ではブラウザ認証が走る。認証情報は VM のディスク（`~/.claude`）に残るので、`make stop` → `make up` しても再ログインは不要。
+ログインしたら VM の中で claude を起動する:
+
+```sh
+claude --dangerously-skip-permissions
+```
+
+初回はブラウザ認証が走る。認証情報は VM のディスク（`~/.claude`）に残るので、`make stop` → `make up` しても再ログインは不要。
 
 git の `user.name` / `user.email` はホストの `git config` の値が自動で入る。別の identity を使いたいときは make に渡す:
 
@@ -86,8 +92,7 @@ gnome-keyring（Secret Service）を使う構成もこの VM では動くが、�
 | コマンド | 内容 |
 | --- | --- |
 | `make up` | VM を作成（初回のみ）して起動し、プロビジョニングを流す |
-| `make claude` | `~/workspace` で `claude --dangerously-skip-permissions` を起動 |
-| `make shell` | VM にログイン |
+| `make shell` | VM にログイン（claude はログインしてから中で起動する） |
 | `make dev-env` | git identity など VM 内の開発環境設定を再適用する |
 | `make reprovision` | `lima/provision/` の変更だけを再適用する（VM は作り直さない） |
 | `make recreate` | VM を破棄して作り直す（`lima/claude-sandbox.yaml` の変更を反映するとき） |
@@ -126,11 +131,18 @@ make ssh-config   # 表示された Include 行を ~/.ssh/config に追記する
 
 システムパッケージ（apt）は `curl` / `git` / `build-essential` などの土台と、docker・zsh のみ。ランタイムと CLI は [mise](https://mise.jdx.dev/) が管理する:
 
-`node` (lts), `claude`, `gh`, `ghq`, `ripgrep`, `fd`, `jq`, `starship`, `python` (3.13), `uv`, `go`, `aws-vault`, `awscli`
+`node` (lts), `claude`, `gh`, `ghq`, `ripgrep`, `fd`, `jq`, `starship`, `sheldon`, `python` (3.13), `uv`, `go`, `aws-vault`, `awscli`
 
 ログインシェルは **zsh**（`05-zsh.sh` が `chsh` する）。履歴・補完・Emacs キーバインドは設定済みで、`starship` のプロンプトも `make shell` などの対話シェルで自動的に有効になる（`50-starship.sh` が `~/.zshrc` に配線する）。starship の設定ファイルは置いていないので既定のプリセットで動く。
 
-`ghq` の clone 先（`ghq.root`）は `~/workspace` に設定してあるので、`ghq get` したリポジトリは `~/workspace/github.com/owner/repo` に並ぶ。`make claude` はこの `~/workspace` で起動する。
+zsh のプラグインは [sheldon](https://github.com/rossmacarthur/sheldon) が管理していて（`60-sheldon.sh` が配線する）、既定で以下が有効:
+
+- [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions) — 履歴からの候補を薄く先出しする。`→` で確定。
+- [zsh-syntax-highlighting](https://github.com/zsh-users/zsh-syntax-highlighting) — 入力中のコマンドを着色する（存在しないコマンドは赤）。
+
+プラグインを足すときは `lima/provision/sheldon.plugins.toml` に書いて `make reprovision`。`sheldon add` を VM 内で直接叩いても、この設定ファイルは次のブートでリポジトリ側の内容に戻る。
+
+`ghq` の clone 先（`ghq.root`）は `~/workspace` に設定してあるので、`ghq get` したリポジトリは `~/workspace/github.com/owner/repo` に並ぶ。
 
 追加したいものは `lima/provision/mise.vm.toml` に書いて `make reprovision`。ルートの `mise.toml` はホスト側の開発ツール用で別物なので、混同しないこと。
 
@@ -157,12 +169,14 @@ lima/claude-sandbox.yaml        Lima テンプレート (VM のスペック・�
 lima/provision/
   00-system-packages.sh         apt で土台のパッケージを入れる   (root)
   mise.vm.toml                  VM のツール定義 → VM の ~/.config/mise/config.toml
+  sheldon.plugins.toml          zsh プラグイン定義 → VM の ~/.config/sheldon/plugins.toml
   05-zsh.sh                     ログインシェルを zsh にし、rc ファイルの土台を作る
   10-mise.sh                    mise 本体の導入とツールのインストール
   20-dev-env.sh                 ~/workspace / git identity / GitHub HTTPS 認証の設定
   30-docker.sh                  docker.socket の所有者設定とサービス有効化
   40-aws-vault.sh               aws-vault のバックエンド設定
   50-starship.sh                シェルプロンプト (starship) の配線
+  60-sheldon.sh                 zsh プラグインマネージャ (sheldon) の配線
 ```
 
 プロビジョニングスクリプトは VM の**毎回のブートで実行される**ため、すべて冪等に書いてある。詳細は `CLAUDE.md` を参照。

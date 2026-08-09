@@ -9,7 +9,7 @@ GIT_USER_NAME  ?= $(shell git config --get user.name)
 GIT_USER_EMAIL ?= $(shell git config --get user.email)
 
 .DEFAULT_GOAL := up
-.PHONY: up claude shell dev-env reprovision recreate stop destroy status validate ssh-config help
+.PHONY: up shell dev-env reprovision recreate stop destroy status validate ssh-config help
 
 ## up: VM を作成 (初回のみ) して起動し、プロビジョニングを流す
 up:
@@ -21,14 +21,6 @@ up:
 		limactl start --name='$(INSTANCE)' '$(TEMPLATE)' --progress --timeout=20m -y; \
 	fi
 	@$(MAKE) --no-print-directory dev-env
-
-## claude: VM 内の ~/workspace で claude を起動する
-#
-# --dangerously-skip-permissions を付けているのは、この VM が完全隔離 (mounts: []) で
-# ホストのファイルシステム・認証情報に到達する経路を持たないため。
-# lima/claude-sandbox.yaml に mounts を足すと、この前提が崩れる。
-claude: up
-	limactl shell '$(INSTANCE)' -- zsh -lc 'cd ~/workspace && exec claude --dangerously-skip-permissions'
 
 ## shell: VM にログインする
 #
@@ -59,10 +51,12 @@ reprovision:
 	limactl shell '$(INSTANCE)' -- sudo bash /tmp/provision/00-system-packages.sh
 	limactl shell '$(INSTANCE)' -- bash /tmp/provision/05-zsh.sh
 	limactl shell '$(INSTANCE)' -- zsh -lc 'install -D -m 0644 /tmp/provision/mise.vm.toml ~/.config/mise/config.toml'
+	limactl shell '$(INSTANCE)' -- zsh -lc 'install -D -m 0644 /tmp/provision/sheldon.plugins.toml ~/.config/sheldon/plugins.toml'
 	limactl shell '$(INSTANCE)' -- zsh -lc 'bash /tmp/provision/10-mise.sh'
 	limactl shell '$(INSTANCE)' -- zsh -lc 'bash /tmp/provision/30-docker.sh'
 	limactl shell '$(INSTANCE)' -- zsh -lc 'bash /tmp/provision/40-aws-vault.sh'
 	limactl shell '$(INSTANCE)' -- zsh -lc 'bash /tmp/provision/50-starship.sh'
+	limactl shell '$(INSTANCE)' -- zsh -lc 'bash /tmp/provision/60-sheldon.sh'
 	@$(MAKE) --no-print-directory dev-env
 
 ## recreate: VM を破棄して作り直す ($(TEMPLATE) 自体の変更を反映するときに使う)

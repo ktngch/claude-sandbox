@@ -27,7 +27,7 @@ if ! git config --global --get init.defaultBranch >/dev/null 2>&1; then
   git config --global init.defaultBranch main
 fi
 
-# 3. ghq — clone 先を ~/workspace に固定する (make claude の cd 先と一致させる)
+# 3. ghq — clone 先を ~/workspace に固定する
 git config --global ghq.root "${HOME}/workspace"
 
 # 4. GitHub の HTTPS 認証。

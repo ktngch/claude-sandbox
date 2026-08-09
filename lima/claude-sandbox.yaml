@@ -1,7 +1,7 @@
 # Claude Code を隔離環境で走らせるための Lima テンプレート。
 #
 #   $ make up        # 作成 + 起動 + プロビジョニング
-#   $ make claude    # VM 内の ~/workspace で claude を起動
+#   $ make shell     # VM にログインする (claude は中で叩く)
 #
 # 隔離モデル: mounts を空にしてホストのファイルシステムを一切見せない。
 # ホストの ~/.ssh、他プロジェクトのソース、クラウド認証情報に到達する経路が無いことが、
@@ -40,10 +40,14 @@ ssh:
 # Makefile の dev-env ターゲットが env として 20-dev-env.sh に流し込む方式にしている。
 
 # 実行順は data -> system -> user (cloud-init の scripts_per_boot 内)。
-# mise.vm.toml を mode: data に置くだけで 10-mise.sh より先に配置される。
+# mise.vm.toml / sheldon.plugins.toml を mode: data に置くだけで、それを読む
+# 10-mise.sh / 60-sheldon.sh より先に配置される。
 # いずれも毎ブート実行されるため、各スクリプト側で冪等性を担保している。
-# user 内の番号順は rc ファイルへの追記順でもある: 05 (土台) -> 10 (mise) -> 50 (starship)。
-# starship の配線は mise の PATH が通った後でなければ効かないので、この順序を崩さないこと。
+# user 内の番号順は rc ファイルへの追記順でもある:
+#   05 (土台) -> 10 (mise) -> 50 (starship) -> 60 (sheldon)。
+# starship と sheldon の配線は mise の PATH が通った後でなければ効かない。さらに
+# sheldon が読む zsh-syntax-highlighting は "最後に source されること" を要求するので、
+# 60 は末尾のまま動かさないこと。
 provision:
 - mode: system
   file: provision/00-system-packages.sh
@@ -54,6 +58,13 @@ provision:
   owner: "{{.User}}"
   permissions: "0644"
   overwrite: true # リポジトリ側の mise.vm.toml を唯一の真実にする
+
+- mode: data
+  path: "{{.Home}}/.config/sheldon/plugins.toml"
+  file: provision/sheldon.plugins.toml
+  owner: "{{.User}}"
+  permissions: "0644"
+  overwrite: true # リポジトリ側の sheldon.plugins.toml を唯一の真実にする
 
 - mode: user
   file: provision/05-zsh.sh
@@ -72,6 +83,9 @@ provision:
 
 - mode: user
   file: provision/50-starship.sh
+
+- mode: user
+  file: provision/60-sheldon.sh
 
 probes:
 - mode: readiness
@@ -108,10 +122,15 @@ probes:
 message: |
   VM の準備ができました。
 
-    make claude   # ~/workspace で claude を起動 (初回はブラウザ認証が走ります)
     make shell    # VM にログイン
 
-  認証情報は VM のディスク (~/.claude) に残るので、再起動後の再ログインは不要です。
+  ログインしたら VM の中で claude を起動してください
+  (完全隔離なので --dangerously-skip-permissions を付けて常用できます):
+
+    claude --dangerously-skip-permissions
+
+  初回はブラウザ認証が走ります。認証情報は VM のディスク (~/.claude) に残るので、
+  再起動後の再ログインは不要です。
 
   ホストのエディタから触りたい場合は VS Code の Remote-SSH で接続してください:
     ssh config: {{.Dir}}/ssh.config   (Host は lima-{{.Name}})
