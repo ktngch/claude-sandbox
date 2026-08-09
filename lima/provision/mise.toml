@@ -9,6 +9,7 @@ claude  = "latest"
 
 # claude が多用する検索系 / GitHub 操作系 CLI
 gh      = "latest"
+ghq     = "latest" # clone 先を ~/workspace/github.com/owner/repo に整理する
 ripgrep = "latest"
 fd      = "latest"
 jq      = "latest"

@@ -34,10 +34,9 @@ ssh:
   loadDotSSHPubKeys: false # ホストの ~/.ssh/*.pub を持ち込まない
   forwardAgent: false # ホストの ssh-agent を VM に晒さない
 
-# VM 内の git identity。既に設定済みなら 20-dev-env.sh は上書きしない。
-param:
-  gitUserName: ""
-  gitUserEmail: ""
+# VM 内の git identity には param: を使わない。
+# param はインスタンス作成時にしか渡せず、既存 VM への make up では変更できないため、
+# Makefile の dev-env ターゲットが env として 20-dev-env.sh に流し込む方式にしている。
 
 # 実行順は data -> system -> user (cloud-init の scripts_per_boot 内)。
 # mise.toml を mode: data に置くだけで 10-mise.sh より先に配置される。

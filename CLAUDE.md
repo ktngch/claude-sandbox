@@ -27,6 +27,12 @@ make status         # 状態確認
 
 `make reprovision` は yaml の `mode: data` に相当する処理（`mise.toml` → `~/.config/mise/config.toml` の配置）も自前で再現している。yaml 側の provision エントリを増減させたら、Makefile の `reprovision` ターゲットも合わせて更新すること。
 
+`20-dev-env.sh` だけは `dev-env` ターゲットに切り出してあり、`up` と `reprovision` の両方がこれを呼ぶ。ホストの git identity を env で流し込む唯一の経路なので、片方から外さないこと。
+
+### `param:` は使わない
+
+Lima の `param` はインスタンス**作成時**にしか渡せず、既存 VM への `make up`（`limactl start <name>` 経路）では変更できない。さらに `make reprovision` はスクリプトを生のまま実行するので `{{.Param.*}}` が展開されない。ホストから VM に値を渡したいときは、`dev-env` のように `limactl shell -- env KEY=... bash -lc ...` を使う。
+
 ## 不変条件
 
 ### 1. 隔離モデルを単独で壊さない
@@ -37,13 +43,15 @@ make status         # 状態確認
 
 隔離を緩める必要が出たら、`make claude` から `--dangerously-skip-permissions` を外すこととセットで検討する。
 
+GitHub への認証は **HTTPS + 環境変数の fine-grained PAT** だけを経路にする。「push できない」を ssh 鍵の配置や `forwardAgent: true` で解決しないこと。トークンはユーザーが VM 内で `export` するものであり、ホスト側（Makefile・yaml・`~/.lima/<name>/`）には一切書かない。
+
 ### 2. provision スクリプトは毎ブート実行される
 
 Lima の provision は cloud-init の `scripts_per_boot` として登録されるため、VM を再起動するたびに全スクリプトが走る。処理を追加するときは必ずガードを付ける:
 
 - `00-system-packages.sh` — パッケージリストの sha256 をスタンプファイル名に埋め込み、`/var/lib/sandbox-vm/apt.<hash>` があれば `apt-get update` ごとスキップする。リストを変えるとハッシュが変わって自動的に再実行される。
 - `10-mise.sh` — mise 本体は `-x` チェック、シェル統合は `# >>> sandbox-vm mise >>>` マーカーの `grep -qF` で判定。`mise install` は既存バージョンをスキップするので**あえてスタンプを置かない**（置くと `latest` 指定の `claude` が上流更新に追随できなくなる）。
-- `20-dev-env.sh` — `git config --global --get` で未設定のキーだけ書き込み、ユーザーが VM 内で変えた値を上書きしない。`~/.claude` には触れない（対話ログインの成果物が消えるため）。
+- `20-dev-env.sh` — 書き込みの種類ごとに冪等性の担保が違う。`user.name` / `user.email` は `GIT_USER_NAME` / `GIT_USER_EMAIL` が**非空のときだけ**上書きする（ホスト側を単一の真実にするため。ブート経路では env が空なので VM 内の設定が残る）。`init.defaultBranch` は未設定のときだけ書く。`ghq.root` と credential helper 関連は単一値なので `git config --global` で上書きし続けてよい。`url.insteadOf` は多値キーなので `--replace-all` → `--add` の順で書く（`--add` だけだとブートごとに増殖する）。`~/.profile` への `GIT_TERMINAL_PROMPT=0` は `# >>> sandbox-vm git >>>` マーカーの `grep -qF` で判定する。`~/.claude` には触れない（対話ログインの成果物が消えるため）。
 
 ### 3. provision スクリプト内で `{{` を 2 個続けて書かない
 
