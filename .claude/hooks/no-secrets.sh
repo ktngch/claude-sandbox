@@ -27,7 +27,7 @@ assigns=$(printf '%s' "$body" \
 [ -n "$assigns" ] && hits+="秘密の環境変数への実値代入 ($(printf '%s' "$assigns" | head -1 | cut -c1-40)...); "
 
 if [ -n "$hits" ]; then
-  jq -n --arg r "sandbox-vm harness guard: ${hits}CLAUDE.md 不変条件 #1 により、PAT / AWS パスフレーズはホスト側 (Makefile・yaml・provision・~/.lima/) に書けません。ユーザーが VM 内で export する経路だけを使ってください。" \
+  jq -n --arg r "claude-sandbox harness guard: ${hits}CLAUDE.md 不変条件 #1 により、PAT / AWS パスフレーズはホスト側 (Makefile・yaml・provision・~/.lima/) に書けません。ユーザーが VM 内で export する経路だけを使ってください。" \
     '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
 fi
 exit 0

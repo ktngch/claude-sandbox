@@ -1,4 +1,4 @@
-# sandbox-vm
+# claude-sandbox
 
 macOS 上に [Lima](https://lima-vm.io/) で隔離された Linux VM を立て、その中で Claude Code を動かすための設定一式。
 

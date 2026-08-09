@@ -36,7 +36,7 @@ grep -qE '^\s*forwardAgent: false' "$yaml"      || problems+="ssh.forwardAgent �
 ! grep -q 'template:_default/mounts' "$yaml"    || problems+="base に template:_default/mounts が入っています (ホームが RO マウントされます)。\n"
 
 if [ -n "$problems" ]; then
-  printf 'sandbox-vm harness guard:\n%b' "$problems" >&2
+  printf 'claude-sandbox harness guard:\n%b' "$problems" >&2
   exit 2
 fi
 exit 0

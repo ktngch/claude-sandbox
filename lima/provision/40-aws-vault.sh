@@ -13,8 +13,8 @@
 # 毎ブート実行される (cloud-init の scripts_per_boot) ので冪等に書く。
 set -euo pipefail
 
-AWS_MARKER='# >>> sandbox-vm aws-vault >>>'
-AWS_END_MARKER='# <<< sandbox-vm aws-vault <<<'
+AWS_MARKER='# >>> claude-sandbox aws-vault >>>'
+AWS_END_MARKER='# <<< claude-sandbox aws-vault <<<'
 
 # CLAUDE.md 不変条件 #4 の通り .bashrc ではなく .profile に置く
 # (非対話の `limactl shell -- cmd` にも効かせるため)。
@@ -35,11 +35,11 @@ touch "${HOME}/.profile"
 CURRENT_BLOCK=$(sed -n "/^${AWS_MARKER}\$/,/^${AWS_END_MARKER}\$/p" "${HOME}/.profile")
 
 if [ "$CURRENT_BLOCK" != "$DESIRED_BLOCK" ]; then
-  echo "sandbox-vm: writing the aws-vault block to ~/.profile"
+  echo "claude-sandbox: writing the aws-vault block to ~/.profile"
   if [ -n "$CURRENT_BLOCK" ]; then
     sed -i "/^${AWS_MARKER}\$/,/^${AWS_END_MARKER}\$/d" "${HOME}/.profile"
   fi
   printf '\n%s\n' "$DESIRED_BLOCK" >>"${HOME}/.profile"
 fi
 
-echo "sandbox-vm: aws-vault backend = file (~/.awsvault/keys/)"
+echo "claude-sandbox: aws-vault backend = file (~/.awsvault/keys/)"

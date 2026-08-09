@@ -10,8 +10,8 @@
 # 毎ブート実行される (cloud-init の scripts_per_boot) ので冪等に書く。
 set -euo pipefail
 
-STARSHIP_MARKER='# >>> sandbox-vm starship >>>'
-STARSHIP_END_MARKER='# <<< sandbox-vm starship <<<'
+STARSHIP_MARKER='# >>> claude-sandbox starship >>>'
+STARSHIP_END_MARKER='# <<< claude-sandbox starship <<<'
 
 # 40-aws-vault.sh と同じく、マーカーの有無ではなく中身を比較する。
 # 存在チェックだけだと、後からこのブロックを直したときに既存 VM へ伝播しない。
@@ -33,11 +33,11 @@ CURRENT_BLOCK=$(sed -n "/^${STARSHIP_MARKER}\$/,/^${STARSHIP_END_MARKER}\$/p" "$
 # mise activate は評価時点で解決済みの PATH を export するので、この順序なら
 # 上の command -v starship が通る。消して末尾に追記し直すので順序は保たれる。
 if [ "$CURRENT_BLOCK" != "$DESIRED_BLOCK" ]; then
-  echo "sandbox-vm: writing the starship block to ~/.bashrc"
+  echo "claude-sandbox: writing the starship block to ~/.bashrc"
   if [ -n "$CURRENT_BLOCK" ]; then
     sed -i "/^${STARSHIP_MARKER}\$/,/^${STARSHIP_END_MARKER}\$/d" "${HOME}/.bashrc"
   fi
   printf '\n%s\n' "$DESIRED_BLOCK" >>"${HOME}/.bashrc"
 fi
 
-echo "sandbox-vm: starship prompt wired into ~/.bashrc"
+echo "claude-sandbox: starship prompt wired into ~/.bashrc"

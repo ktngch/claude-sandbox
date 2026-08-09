@@ -14,7 +14,7 @@ OVERRIDE_DIR=/etc/systemd/system/docker.socket.d
 OVERRIDE="${OVERRIDE_DIR}/override.conf"
 
 if ! command -v docker >/dev/null 2>&1; then
-  echo >&2 "sandbox-vm: docker が見つからない (00-system-packages.sh が先に走っているはず)"
+  echo >&2 "claude-sandbox: docker が見つからない (00-system-packages.sh が先に走っているはず)"
   exit 1
 fi
 
@@ -33,7 +33,7 @@ EOF
 # 内容が同じなら書き換えない。毎ブートの daemon-reload とサービス再起動を避けるため。
 changed=0
 if [ "$(cat "$OVERRIDE" 2>/dev/null || true)" != "$DESIRED" ]; then
-  echo "sandbox-vm: writing ${OVERRIDE}"
+  echo "claude-sandbox: writing ${OVERRIDE}"
   sudo install -d -m 0755 "$OVERRIDE_DIR"
   printf '%s\n' "$DESIRED" | sudo tee "$OVERRIDE" >/dev/null
   sudo chmod 0644 "$OVERRIDE"
@@ -52,8 +52,8 @@ fi
 
 # 3. ソケット経由で疎通するまで待つ (このユーザーで docker info が通ることの確認も兼ねる)
 if ! timeout 60s bash -c 'until docker info >/dev/null 2>&1; do sleep 1; done'; then
-  echo >&2 "sandbox-vm: docker daemon に繋がらない。sudo journalctl -u docker.service を確認してください"
+  echo >&2 "claude-sandbox: docker daemon に繋がらない。sudo journalctl -u docker.service を確認してください"
   exit 1
 fi
 
-echo "sandbox-vm: docker ready ($(docker --version))"
+echo "claude-sandbox: docker ready ($(docker --version))"
