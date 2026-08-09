@@ -19,6 +19,11 @@ python  = "3.13"
 uv      = "latest"
 go      = "latest"
 
+# AWS。クレデンシャルは平文の ~/.aws/credentials ではなく aws-vault の
+# file バックエンド (パスフレーズで暗号化) に置く。配線は 40-aws-vault.sh。
+aws-vault = "latest" # aqua:ByteNess/aws-vault (abandoned な 99designs 版のメンテナンスフォーク)
+awscli    = "latest"
+
 [settings]
 # ソースビルドを避けて precompiled ビルドを使う。初回ブートが数分短くなる。
 python.compile = false

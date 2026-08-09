@@ -52,6 +52,7 @@ reprovision:
 	limactl shell '$(INSTANCE)' -- bash -lc 'install -D -m 0644 /tmp/provision/mise.toml ~/.config/mise/config.toml'
 	limactl shell '$(INSTANCE)' -- bash -lc 'bash /tmp/provision/10-mise.sh'
 	limactl shell '$(INSTANCE)' -- bash -lc 'bash /tmp/provision/30-docker.sh'
+	limactl shell '$(INSTANCE)' -- bash -lc 'bash /tmp/provision/40-aws-vault.sh'
 	@$(MAKE) --no-print-directory dev-env
 
 ## recreate: VM を破棄して作り直す ($(TEMPLATE) 自体の変更を反映するときに使う)
