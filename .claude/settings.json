@@ -1,0 +1,50 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make validate)",
+      "Bash(make status)",
+      "Bash(limactl validate *)",
+      "Bash(limactl list *)",
+      "Bash(shellcheck *)"
+    ],
+    "ask": [
+      "Bash(make destroy)",
+      "Bash(make recreate)",
+      "Bash(limactl delete *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/no-secrets.sh\"",
+            "timeout": 10,
+            "statusMessage": "checking for credentials"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/lima-guard.sh\"",
+            "timeout": 60,
+            "statusMessage": "validating the Lima template"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/shell-lint.sh\"",
+            "timeout": 30,
+            "statusMessage": "linting the shell script"
+          }
+        ]
+      }
+    ]
+  }
+}
