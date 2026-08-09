@@ -1,0 +1,41 @@
+# provision スクリプトと hooks の静的解析。
+# 検査内容は .claude/hooks/shell-lint.sh (編集時に走る方) と同じ bash -n + shellcheck で、
+# それを全スクリプトに対して PR の時点でもう一度回している。
+#
+# paths はワークフロー単位にしか書けないので、limactl validate とはファイルを分けてある
+# (共通で触るのは lima/provision/*.sh と mise.toml)。
+name: shellcheck
+
+# 実行一覧でどの PR の分かを見分けられるようにする。
+# '#' は YAML ではコメント開始になるのでクオートが要る。
+run-name: 'shellcheck: #${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}'
+
+on:
+  pull_request:
+    paths:
+    - '**.sh'
+    - 'mise.toml' # shellcheck のバージョンピン
+    - '.github/workflows/shellcheck.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+
+    # ホスト側の開発ツールと同じピン留め (mise.toml) を使う。
+    # install_args でツールを絞らないのは、絞るとキャッシュキーが分かれて
+    # lima validate 側と同じキャッシュを共有できなくなるため。
+    - uses: jdx/mise-action@v4
+
+    - name: shellcheck
+      run: |
+        git ls-files -z '*.sh' | xargs -0 -t -n1 bash -n
+        git ls-files -z '*.sh' | xargs -0 -t shellcheck

@@ -18,8 +18,7 @@ yaml="$root/lima/claude-code.yaml"
 [ -f "$yaml" ] || exit 0
 problems=""
 
-out=$(limactl validate "$yaml" 2>&1)
-if [ $? -ne 0 ]; then
+if ! out=$(limactl validate "$yaml" 2>&1); then
   problems+="limactl validate が失敗しました:\n$(printf '%s' "$out" | tail -5)\n"
 elif printf '%s' "$out" | grep -q 'level=warning'; then
   problems+="limactl validate が警告を出しました (exit 0 なので make validate では素通りします)。\n"

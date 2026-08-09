@@ -1,0 +1,52 @@
+# Lima テンプレートの検証。
+#
+# limactl は provision スクリプトのテンプレート解析に失敗しても警告を出すだけで exit 0 を返す
+# (CLAUDE.md 不変条件 #3)。素の validate はログ表示と疎通確認のために実行し、合否は
+# 警告を失敗として扱う .claude/hooks/lima-guard.sh に判定させる (不変条件 #1 の検査もそこ)。
+# 検査の実体を hook 側に置いたままにしているので、不変条件を足すときは hook だけ直せばよい。
+#
+# vmType: vz だが ubuntu-latest で検証できる。limactl validate は組み込み vmType を
+# 実行プラットフォームに関係なく受理し、内部の Validate を warn=false で呼ぶため
+# プラットフォーム依存の警告も出さない。
+#
+# paths に lima/** が入っているので provision スクリプトの変更でも発火する
+# (スクリプトはテンプレートに埋め込まれて解析対象になるため)。
+name: lima validate
+
+# 実行一覧でどの PR の分かを見分けられるようにする。
+# '#' は YAML ではコメント開始になるのでクオートが要る。
+run-name: 'lima validate: #${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}'
+
+on:
+  pull_request:
+    paths:
+    - 'lima/**'
+    - '.claude/hooks/lima-guard.sh' # 検査の実体
+    - 'mise.toml' # lima のバージョンピン
+    - '.github/workflows/lima-validate.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lima-validate:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+
+    # ホスト側の開発ツールと同じピン留め (mise.toml) を使う
+    # (limactl のほか、jq を lima-guard.sh が必須にしている)。
+    # install_args でツールを絞らないのは、絞るとキャッシュキーが分かれて
+    # shellcheck 側と同じキャッシュを共有できなくなるため。
+    - uses: jdx/mise-action@v4
+
+    # hook は file_path からリポジトリルートを求めるので絶対パスを渡すこと。
+    - name: limactl validate
+      run: |
+        limactl validate lima/claude-code.yaml
+        printf '{"tool_input":{"file_path":"%s"}}' "$PWD/lima/claude-code.yaml" \
+          | .claude/hooks/lima-guard.sh
