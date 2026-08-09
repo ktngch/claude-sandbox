@@ -24,8 +24,9 @@ disk: "40GiB" # thin provisioning。実使用分しかホストのディスク�
 # ★ 完全隔離。ホストのディレクトリは一切マウントしない。
 mounts: []
 
-# 起動時間短縮のため無効化。コンテナが要るときは
-# /opt/homebrew/share/lima/templates/docker.yaml の provision を移植する。
+# Lima の containerd / nerdctl は使わない (起動時間短縮)。
+# コンテナは apt の docker.io で動かす: 00-system-packages.sh がパッケージを入れ、
+# 30-docker.sh が docker.socket の所有者を VM のユーザーにしてサービスを有効化する。
 containerd:
   system: false
   user: false
@@ -58,6 +59,9 @@ provision:
 - mode: user
   file: provision/20-dev-env.sh
 
+- mode: user
+  file: provision/30-docker.sh
+
 probes:
 - mode: readiness
   description: mise-managed tools (node, claude) to be installed
@@ -74,6 +78,21 @@ probes:
     mise によるツールのインストールが完了しませんでした。
     ゲスト内の /var/log/cloud-init-output.log を確認してください:
       limactl shell claude-code -- sudo tail -100 /var/log/cloud-init-output.log
+
+- mode: readiness
+  description: docker daemon to be reachable from the lima user
+  script: |
+    #!/bin/bash
+    set -eu -o pipefail
+    if ! timeout 180s bash -c 'until docker info >/dev/null 2>&1; do sleep 3; done'; then
+      echo >&2 "docker is not reachable yet"
+      exit 1
+    fi
+  hint: |
+    docker のソケットに繋がりませんでした。
+    ゲスト内の /var/log/cloud-init-output.log と docker のログを確認してください:
+      limactl shell claude-code -- sudo tail -100 /var/log/cloud-init-output.log
+      limactl shell claude-code -- sudo journalctl -u docker.service -n 100
 
 message: |
   VM の準備ができました。

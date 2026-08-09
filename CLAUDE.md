@@ -52,6 +52,7 @@ Lima の provision は cloud-init の `scripts_per_boot` として登録され�
 - `00-system-packages.sh` — パッケージリストの sha256 をスタンプファイル名に埋め込み、`/var/lib/sandbox-vm/apt.<hash>` があれば `apt-get update` ごとスキップする。リストを変えるとハッシュが変わって自動的に再実行される。
 - `10-mise.sh` — mise 本体は `-x` チェック、シェル統合は `# >>> sandbox-vm mise >>>` マーカーの `grep -qF` で判定。`mise install` は既存バージョンをスキップするので**あえてスタンプを置かない**（置くと `latest` 指定の `claude` が上流更新に追随できなくなる）。
 - `20-dev-env.sh` — 書き込みの種類ごとに冪等性の担保が違う。`user.name` / `user.email` は `GIT_USER_NAME` / `GIT_USER_EMAIL` が**非空のときだけ**上書きする（ホスト側を単一の真実にするため。ブート経路では env が空なので VM 内の設定が残る）。`init.defaultBranch` は未設定のときだけ書く。`ghq.root` と credential helper 関連は単一値なので `git config --global` で上書きし続けてよい。`url.insteadOf` は多値キーなので `--replace-all` → `--add` の順で書く（`--add` だけだとブートごとに増殖する）。`~/.profile` への `GIT_TERMINAL_PROMPT=0` は `# >>> sandbox-vm git >>>` マーカーの `grep -qF` で判定する。`~/.claude` には触れない（対話ログインの成果物が消えるため）。
+- `30-docker.sh` — `docker.socket` の drop-in は**内容を比較して差分があるときだけ**書き、書き換えたときだけ `daemon-reload` とサービス再起動を行う（毎ブート restart するとブートが遅くなる）。ソケットの権限は `usermod -aG docker` ではなく `SocketUser` で与える。補助グループは SSH 認証時に確定し、Lima は SSH 接続を ControlMaster で多重化するため、グループ追加は `make reprovision` 直後のセッションに反映されない（VM を再起動するまで permission denied になる）。
 
 ### 3. provision スクリプト内で `{{` を 2 個続けて書かない
 
@@ -64,3 +65,5 @@ Ubuntu の `~/.bashrc` は非対話シェルで冒頭 return するため、`lim
 ## ツールの追加
 
 ランタイムや CLI は原則すべて mise 管理下に置く（`lima/provision/mise.toml`）。apt は mise で入らない土台（コンパイラ、共有ライブラリ等）だけに留める。追加前に `mise registry | grep <name>` で登録名を確認すること。
+
+docker（`docker.io` / `docker-buildx` / `docker-compose-v2`）はデーモン + systemd 管理で mise に載らないため、`00-system-packages.sh` の `PACKAGES` に置いている例外。同種の例外を足すときも、パッケージ追加は `PACKAGES` に入れる（sha256 スタンプが自動で再実行を引く）だけにして、サービス設定は別スクリプトに切り出す。
