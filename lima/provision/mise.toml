@@ -14,6 +14,9 @@ ripgrep = "latest"
 fd      = "latest"
 jq      = "latest"
 
+# シェルのプロンプト装飾。~/.bashrc への配線は 50-starship.sh
+starship = "latest"
+
 # ランタイム
 python  = "3.13"
 uv      = "latest"

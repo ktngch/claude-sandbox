@@ -65,6 +65,9 @@ provision:
 - mode: user
   file: provision/40-aws-vault.sh
 
+- mode: user
+  file: provision/50-starship.sh
+
 probes:
 - mode: readiness
   description: mise-managed tools (node, claude) to be installed
