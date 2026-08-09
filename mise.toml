@@ -8,3 +8,9 @@
 lima       = "2.2.0"  # limactl。make up / make validate の実体 (registry 名は lima であって limactl ではない)
 shellcheck = "0.11.0" # .claude/hooks/shell-lint.sh が使う
 jq         = "1.8.2"  # .claude/hooks/ の全スクリプトが必須にしている
+
+# GitHub Actions ワークフローの検査。CI (.github/workflows/actions-lint.yml) と
+# .claude/hooks/workflow-lint.sh が同じピンを使う。
+actionlint = "1.7.12" # ワークフローの静的解析 (run: ブロックは shellcheck に委譲される)
+zizmor     = "1.29.0" # ワークフローのセキュリティ監査
+pinact     = "4.1.0"  # uses: の SHA ピン留め。ピンの更新は手書きせずこれを流す

@@ -15,7 +15,13 @@ Lima 本体（`limactl`）はルートの `mise.toml` で管理しているの�
 mise trust && mise install
 ```
 
-これで `limactl` に加えて、`.claude/hooks/` が使う `shellcheck` / `jq` も揃う。
+これで `limactl` に加えて、`.claude/hooks/` と CI が使う `shellcheck` / `jq` / `actionlint` / `zizmor` / `pinact` も揃う。
+
+GitHub Actions の `uses:` は SHA でピン留めしてある。更新するときは手で SHA を書かず、`pinact` に解決させる:
+
+```sh
+GITHUB_TOKEN=$(gh auth token) pinact run
+```
 
 ## 使い方
 
@@ -144,7 +150,7 @@ docker run --rm hello-world
 
 ```
 Makefile                        1 コマンドのエントリポイント
-mise.toml                       ホスト側の開発ツール (limactl / shellcheck / jq)
+mise.toml                       ホスト側の開発ツール (limactl / shellcheck / jq / actionlint / zizmor / pinact)
 lima/claude-code.yaml           Lima テンプレート (VM のスペック・隔離設定)
 lima/provision/
   00-system-packages.sh         apt で土台のパッケージを入れる   (root)

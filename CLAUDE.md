@@ -75,9 +75,18 @@ Ubuntu の `~/.bashrc` は非対話シェルで冒頭 return するため、`lim
 
 - `lima-guard.sh` (PostToolUse / `lima/**`) — `limactl validate` の **警告を失敗として扱う**。不変条件 #3 のとおり limactl は警告を出しても exit 0 なので、`make validate` だけでは検知できない。あわせて不変条件 #1（`mounts: []`、`loadDotSSHPubKeys`、`forwardAgent`、`_default/mounts`）も検査する。
 - `shell-lint.sh` (PostToolUse / `*.sh`) — `bash -n` + `shellcheck`。既存の provision スクリプトは全数クリーンなので、指摘が出たら新しく入れた側が原因。
+- `workflow-lint.sh` (PostToolUse / `.github/workflows/*.yml`) — `actionlint` + `zizmor --offline`。`--offline` なのは編集のたびにネットワークと GitHub トークンに依存させないため。オンライン監査（`known-vulnerable-actions` 等）と `pinact` は CI 側（`actions-lint.yml`）でしか回らない。
 - `no-secrets.sh` (PreToolUse) — PAT / AWS パスフレーズの実値がホスト側のファイルに入るのを止める（不変条件 #1）。README や provision の `export GITHUB_TOKEN=github_pat_...` のような**例示は通す**ので、プレースホルダを実値らしい文字列に書き換えないこと。
 
 VM 内で走る claude 側（`--dangerously-skip-permissions`）にはハーネスを持ち込まない。隔離はあくまで「ホストへの到達経路が無いこと」で担保する。
+
+## GitHub Actions の `uses:` は SHA ピンを維持する
+
+タグは動かせるので、`actions/checkout@v5` のような参照はサプライチェーン上の穴になる。`uses:` はすべて `owner/repo@<40桁SHA> # vX.Y.Z` の形にしてあり、zizmor の `unpinned-uses` と CI の `pinact run --check` が両方から見張っている。
+
+**SHA を手で書かないこと。** 追加・更新はローカルで `GITHUB_TOKEN=$(gh auth token) pinact run` を流して解決させる（横のバージョンコメントもここで一緒に付く。手書きするとコメントと SHA がズレて `--check` が落ちる）。
+
+`actions/checkout` には `persist-credentials: false` を付ける（zizmor の `artipacked`）。このリポジトリの CI は push しないので、`.git/config` に認証情報を残す理由が無い。
 
 ## ツールの追加
 

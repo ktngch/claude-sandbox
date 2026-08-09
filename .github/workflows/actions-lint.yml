@@ -1,0 +1,63 @@
+# GitHub Actions ワークフロー自身の検査。
+#
+# 3 つを重ねている。役割が違うので 1 つに寄せられない:
+#   actionlint — 構文・式・runner ラベル等の静的解析。run: ブロックは shellcheck に委譲される
+#                (mise が入れているので、ここは shellcheck.yml と同じピンで検査される)
+#   zizmor     — セキュリティ監査。unpinned-uses / artipacked など、actionlint が見ない層
+#   pinact     — uses: が SHA ピンのままか、横のバージョンコメントとズレていないかの確認
+#
+# 検査の実体は .claude/hooks/workflow-lint.sh (編集時に走る方) と同じ actionlint + zizmor。
+# hook 側はネットワークとトークンに依存させないため --offline なので、オンライン監査
+# (known-vulnerable-actions 等) と pinact はこちらでしか回らない。
+name: actions lint
+
+# 実行一覧でどの PR の分かを見分けられるようにする。
+# '#' は YAML ではコメント開始になるのでクオートが要る。
+run-name: 'actions lint: #${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}'
+
+on:
+  pull_request:
+    paths:
+    - '.github/workflows/**' # このワークフロー自身も含む
+    - 'mise.toml' # actionlint / zizmor / pinact のバージョンピン
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actions-lint:
+    runs-on: ubuntu-latest
+    steps:
+    # persist-credentials: false は zizmor の artipacked 対応。
+    # このリポジトリの CI は push しないので認証情報を残す必要が無い。
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      with:
+        persist-credentials: false
+
+    # ホスト側の開発ツールと同じピン留め (mise.toml) を使う。
+    # install_args でツールを絞らないのは、絞るとキャッシュキーが分かれて
+    # lima validate / shellcheck 側と同じキャッシュを共有できなくなるため。
+    - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+
+    # 引数なしで .github/workflows 配下を走査する。
+    - name: actionlint
+      run: actionlint -color
+
+    # GH_TOKEN があるとオンライン監査 (known-vulnerable-actions 等) も有効になる。
+    # 読み取りしかしないので既定の contents: read で足りる。
+    - name: zizmor
+      run: zizmor .github/workflows
+      env:
+        GH_TOKEN: ${{ github.token }}
+
+    # --check は書き換えずに差分の有無だけを見る。タグ参照が紛れ込んだり
+    # SHA とバージョンコメントがズレたりすると失敗する。直すときはローカルで
+    # `GITHUB_TOKEN=$(gh auth token) pinact run` を流すこと (手で SHA を書かない)。
+    - name: pinact
+      run: pinact run --check
+      env:
+        GITHUB_TOKEN: ${{ github.token }}

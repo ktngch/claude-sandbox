@@ -36,13 +36,17 @@ jobs:
   lima-validate:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    # persist-credentials: false は zizmor の artipacked 対応。
+    # このリポジトリの CI は push しないので認証情報を残す必要が無い。
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      with:
+        persist-credentials: false
 
     # ホスト側の開発ツールと同じピン留め (mise.toml) を使う
     # (limactl のほか、jq を lima-guard.sh が必須にしている)。
     # install_args でツールを絞らないのは、絞るとキャッシュキーが分かれて
     # shellcheck 側と同じキャッシュを共有できなくなるため。
-    - uses: jdx/mise-action@v4
+    - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
 
     # hook は file_path からリポジトリルートを求めるので絶対パスを渡すこと。
     - name: limactl validate
