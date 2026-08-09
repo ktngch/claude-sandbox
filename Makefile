@@ -1,5 +1,5 @@
-INSTANCE ?= claude-code
-TEMPLATE  := lima/claude-code.yaml
+INSTANCE ?= claude-sandbox
+TEMPLATE  := lima/claude-sandbox.yaml
 PROVISION := lima/provision
 
 # VM 内に設定する git identity。既定値はホストの git config から拾う。
@@ -26,7 +26,7 @@ up:
 #
 # --dangerously-skip-permissions を付けているのは、この VM が完全隔離 (mounts: []) で
 # ホストのファイルシステム・認証情報に到達する経路を持たないため。
-# lima/claude-code.yaml に mounts を足すと、この前提が崩れる。
+# lima/claude-sandbox.yaml に mounts を足すと、この前提が崩れる。
 claude: up
 	limactl shell '$(INSTANCE)' -- bash -lc 'cd ~/workspace && exec claude --dangerously-skip-permissions'
 

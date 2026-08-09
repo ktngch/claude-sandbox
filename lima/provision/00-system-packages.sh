@@ -20,11 +20,11 @@ PACKAGES=(
   docker-compose-v2
 )
 
-STAMP_DIR=/var/lib/sandbox-vm
+STAMP_DIR=/var/lib/claude-sandbox
 STAMP="${STAMP_DIR}/apt.$(printf '%s\n' "${PACKAGES[@]}" | sha256sum | cut -c1-16)"
 
 if [ -f "$STAMP" ]; then
-  echo "sandbox-vm: system packages already installed (${STAMP}); skipping apt"
+  echo "claude-sandbox: system packages already installed (${STAMP}); skipping apt"
   exit 0
 fi
 
@@ -34,4 +34,4 @@ apt-get install -y --no-install-recommends "${PACKAGES[@]}"
 
 install -d "$STAMP_DIR"
 touch "$STAMP"
-echo "sandbox-vm: system packages installed"
+echo "claude-sandbox: system packages installed"

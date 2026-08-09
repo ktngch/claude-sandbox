@@ -6,7 +6,7 @@
 # Makefile の dev-env ターゲットからも env 付きで直接叩かれる。どちらでも冪等。
 set -euo pipefail
 
-GIT_MARKER='# >>> sandbox-vm git >>>'
+GIT_MARKER='# >>> claude-sandbox git >>>'
 CREDENTIAL_HELPER="${HOME}/.local/bin/git-credential-github-token"
 
 mkdir -p "${HOME}/workspace"
@@ -15,11 +15,11 @@ mkdir -p "${HOME}/workspace"
 #    ブート時の cloud-init 経路では未設定なので何もしない (VM ディスク上の設定が残る)。
 if [ -n "${GIT_USER_NAME:-}" ]; then
   git config --global user.name "${GIT_USER_NAME}"
-  echo "sandbox-vm: git config --global user.name = ${GIT_USER_NAME}"
+  echo "claude-sandbox: git config --global user.name = ${GIT_USER_NAME}"
 fi
 if [ -n "${GIT_USER_EMAIL:-}" ]; then
   git config --global user.email "${GIT_USER_EMAIL}"
-  echo "sandbox-vm: git config --global user.email = ${GIT_USER_EMAIL}"
+  echo "claude-sandbox: git config --global user.email = ${GIT_USER_EMAIL}"
 fi
 
 # 2. 未設定のときだけ書くもの
@@ -62,13 +62,13 @@ git config --global --add url."https://github.com/".insteadOf 'ssh://git@github.
 #    非対話で即エラーにして、エージェントがハングしないようにする。
 #    PATH と同じ理由で ~/.bashrc ではなく ~/.profile 側に置く (CLAUDE.md 不変条件 #4)。
 if ! grep -qF "$GIT_MARKER" "${HOME}/.profile" 2>/dev/null; then
-  echo "sandbox-vm: adding GIT_TERMINAL_PROMPT=0 to ~/.profile"
+  echo "claude-sandbox: adding GIT_TERMINAL_PROMPT=0 to ~/.profile"
   cat >>"${HOME}/.profile" <<EOF
 
 ${GIT_MARKER}
 export GIT_TERMINAL_PROMPT=0
-# <<< sandbox-vm git <<<
+# <<< claude-sandbox git <<<
 EOF
 fi
 
-echo "sandbox-vm: dev env ready (workspace: ${HOME}/workspace)"
+echo "claude-sandbox: dev env ready (workspace: ${HOME}/workspace)"

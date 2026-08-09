@@ -24,7 +24,7 @@ make status         # 状態確認
 これを取り違えると「直したのに反映されない」で時間を溶かす。
 
 - **`lima/provision/` を変えた** → `make reprovision`。スクリプトを VM に転送して直接実行するので数十秒で終わる。
-- **`lima/claude-code.yaml` を変えた** → `make recreate`。Lima は作成時にテンプレートの内容（provision スクリプトの中身を含む）をインスタンス側 `~/.lima/<name>/lima.yaml` にコピーするため、既存インスタンスに `make up` してもリポジトリ側の yaml 変更は読まれない。
+- **`lima/claude-sandbox.yaml` を変えた** → `make recreate`。Lima は作成時にテンプレートの内容（provision スクリプトの中身を含む）をインスタンス側 `~/.lima/<name>/lima.yaml` にコピーするため、既存インスタンスに `make up` してもリポジトリ側の yaml 変更は読まれない。
 
 `make reprovision` は yaml の `mode: data` に相当する処理（`mise.vm.toml` → `~/.config/mise/config.toml` の配置）も自前で再現している。yaml 側の provision エントリを増減させたら、Makefile の `reprovision` ターゲットも合わせて更新すること。
 
@@ -38,7 +38,7 @@ Lima の `param` はインスタンス**作成時**にしか渡せず、既存 V
 
 ### 1. 隔離モデルを単独で壊さない
 
-`lima/claude-code.yaml` の `mounts: []`、`ssh.loadDotSSHPubKeys: false`、`ssh.forwardAgent: false` は、`make claude` が `--dangerously-skip-permissions` を渡している前提そのもの。マウントや agent forwarding を足すと、VM 内のエージェントがホストの認証情報やソースに到達できるようになる。
+`lima/claude-sandbox.yaml` の `mounts: []`、`ssh.loadDotSSHPubKeys: false`、`ssh.forwardAgent: false` は、`make claude` が `--dangerously-skip-permissions` を渡している前提そのもの。マウントや agent forwarding を足すと、VM 内のエージェントがホストの認証情報やソースに到達できるようになる。
 
 `base:` に `template:_default/mounts` を追加してはいけない（ホームが読み取り専用でマウントされる）。他の Lima テンプレートをコピーしてくるときに紛れ込みやすい。
 
@@ -52,9 +52,9 @@ AWS のクレデンシャルは **aws-vault の file バックエンド**だけ�
 
 Lima の provision は cloud-init の `scripts_per_boot` として登録されるため、VM を再起動するたびに全スクリプトが走る。処理を追加するときは必ずガードを付ける:
 
-- `00-system-packages.sh` — パッケージリストの sha256 をスタンプファイル名に埋め込み、`/var/lib/sandbox-vm/apt.<hash>` があれば `apt-get update` ごとスキップする。リストを変えるとハッシュが変わって自動的に再実行される。
-- `10-mise.sh` — mise 本体は `-x` チェック、シェル統合は `# >>> sandbox-vm mise >>>` マーカーの `grep -qF` で判定。`mise install` は既存バージョンをスキップするので**あえてスタンプを置かない**（置くと `latest` 指定の `claude` が上流更新に追随できなくなる）。
-- `20-dev-env.sh` — 書き込みの種類ごとに冪等性の担保が違う。`user.name` / `user.email` は `GIT_USER_NAME` / `GIT_USER_EMAIL` が**非空のときだけ**上書きする（ホスト側を単一の真実にするため。ブート経路では env が空なので VM 内の設定が残る）。`init.defaultBranch` は未設定のときだけ書く。`ghq.root` と credential helper 関連は単一値なので `git config --global` で上書きし続けてよい。`url.insteadOf` は多値キーなので `--replace-all` → `--add` の順で書く（`--add` だけだとブートごとに増殖する）。`~/.profile` への `GIT_TERMINAL_PROMPT=0` は `# >>> sandbox-vm git >>>` マーカーの `grep -qF` で判定する。`~/.claude` には触れない（対話ログインの成果物が消えるため）。
+- `00-system-packages.sh` — パッケージリストの sha256 をスタンプファイル名に埋め込み、`/var/lib/claude-sandbox/apt.<hash>` があれば `apt-get update` ごとスキップする。リストを変えるとハッシュが変わって自動的に再実行される。
+- `10-mise.sh` — mise 本体は `-x` チェック、シェル統合は `# >>> claude-sandbox mise >>>` マーカーの `grep -qF` で判定。`mise install` は既存バージョンをスキップするので**あえてスタンプを置かない**（置くと `latest` 指定の `claude` が上流更新に追随できなくなる）。
+- `20-dev-env.sh` — 書き込みの種類ごとに冪等性の担保が違う。`user.name` / `user.email` は `GIT_USER_NAME` / `GIT_USER_EMAIL` が**非空のときだけ**上書きする（ホスト側を単一の真実にするため。ブート経路では env が空なので VM 内の設定が残る）。`init.defaultBranch` は未設定のときだけ書く。`ghq.root` と credential helper 関連は単一値なので `git config --global` で上書きし続けてよい。`url.insteadOf` は多値キーなので `--replace-all` → `--add` の順で書く（`--add` だけだとブートごとに増殖する）。`~/.profile` への `GIT_TERMINAL_PROMPT=0` は `# >>> claude-sandbox git >>>` マーカーの `grep -qF` で判定する。`~/.claude` には触れない（対話ログインの成果物が消えるため）。
 - `30-docker.sh` — `docker.socket` の drop-in は**内容を比較して差分があるときだけ**書き、書き換えたときだけ `daemon-reload` とサービス再起動を行う（毎ブート restart するとブートが遅くなる）。ソケットの権限は `usermod -aG docker` ではなく `SocketUser` で与える。補助グループは SSH 認証時に確定し、Lima は SSH 接続を ControlMaster で多重化するため、グループ追加は `make reprovision` 直後のセッションに反映されない（VM を再起動するまで permission denied になる）。
 - `40-aws-vault.sh` — `~/.profile` のブロックは、マーカーの有無ではなく**中身を比較して差分があるときだけ** `sed` で消してから書き直す（`20-dev-env.sh` の `grep -qF` 方式だと、後から export を足したときに既存 VM へ伝播しない）。
 - `50-starship.sh` — `40-aws-vault.sh` と同じ**中身の比較**方式。書き込み先は `~/.bashrc`（不変条件 #4 の例外）。ブロックは削除してから末尾に追記し直すので、`10-mise.sh` が書く mise ブロックより必ず後ろに来る（`mise activate` 後の PATH でないと `command -v starship` が通らない）。

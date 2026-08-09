@@ -15,7 +15,7 @@ if command -v shellcheck >/dev/null 2>&1; then
 fi
 
 if [ -n "$problems" ]; then
-  printf 'sandbox-vm harness guard (%s):\n%b' "$(basename "$file")" "$problems" >&2
+  printf 'claude-sandbox harness guard (%s):\n%b' "$(basename "$file")" "$problems" >&2
   exit 2
 fi
 exit 0

@@ -51,6 +51,6 @@ jobs:
     # hook は file_path からリポジトリルートを求めるので絶対パスを渡すこと。
     - name: limactl validate
       run: |
-        limactl validate lima/claude-code.yaml
-        printf '{"tool_input":{"file_path":"%s"}}' "$PWD/lima/claude-code.yaml" \
+        limactl validate lima/claude-sandbox.yaml
+        printf '{"tool_input":{"file_path":"%s"}}' "$PWD/lima/claude-sandbox.yaml" \
           | .claude/hooks/lima-guard.sh
