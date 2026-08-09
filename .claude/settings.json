@@ -5,7 +5,10 @@
       "Bash(make status)",
       "Bash(limactl validate *)",
       "Bash(limactl list *)",
-      "Bash(shellcheck *)"
+      "Bash(shellcheck *)",
+      "Bash(actionlint *)",
+      "Bash(zizmor *)",
+      "Bash(pinact run --check)"
     ],
     "ask": [
       "Bash(make destroy)",
@@ -42,6 +45,12 @@
             "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/shell-lint.sh\"",
             "timeout": 30,
             "statusMessage": "linting the shell script"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-lint.sh\"",
+            "timeout": 60,
+            "statusMessage": "linting the workflow"
           }
         ]
       }
