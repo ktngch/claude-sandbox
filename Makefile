@@ -49,7 +49,7 @@ dev-env:
 reprovision:
 	limactl copy -r '$(PROVISION)' '$(INSTANCE):/tmp/'
 	limactl shell '$(INSTANCE)' -- sudo bash /tmp/provision/00-system-packages.sh
-	limactl shell '$(INSTANCE)' -- bash -lc 'install -D -m 0644 /tmp/provision/mise.toml ~/.config/mise/config.toml'
+	limactl shell '$(INSTANCE)' -- bash -lc 'install -D -m 0644 /tmp/provision/mise.vm.toml ~/.config/mise/config.toml'
 	limactl shell '$(INSTANCE)' -- bash -lc 'bash /tmp/provision/10-mise.sh'
 	limactl shell '$(INSTANCE)' -- bash -lc 'bash /tmp/provision/30-docker.sh'
 	limactl shell '$(INSTANCE)' -- bash -lc 'bash /tmp/provision/40-aws-vault.sh'

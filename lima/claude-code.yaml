@@ -40,7 +40,7 @@ ssh:
 # Makefile の dev-env ターゲットが env として 20-dev-env.sh に流し込む方式にしている。
 
 # 実行順は data -> system -> user (cloud-init の scripts_per_boot 内)。
-# mise.toml を mode: data に置くだけで 10-mise.sh より先に配置される。
+# mise.vm.toml を mode: data に置くだけで 10-mise.sh より先に配置される。
 # いずれも毎ブート実行されるため、各スクリプト側で冪等性を担保している。
 provision:
 - mode: system
@@ -48,10 +48,10 @@ provision:
 
 - mode: data
   path: "{{.Home}}/.config/mise/config.toml"
-  file: provision/mise.toml
+  file: provision/mise.vm.toml
   owner: "{{.User}}"
   permissions: "0644"
-  overwrite: true # リポジトリ側の mise.toml を唯一の真実にする
+  overwrite: true # リポジトリ側の mise.vm.toml を唯一の真実にする
 
 - mode: user
   file: provision/10-mise.sh

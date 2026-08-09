@@ -1,6 +1,10 @@
 # VM 内の ~/.config/mise/config.toml として配置される (lima の provision mode: data)。
 # overwrite: true なので、このファイルが唯一の真実。VM 内で直接編集しても次回ブートで戻る。
 # ツールを足すときはここに追記して `make reprovision` (または `make recreate`)。
+#
+# ファイル名が mise.toml でないのは、そうするとホストで mise を叩いたときに
+# (cwd 上位探索で) これがホスト側の設定として読まれてしまうため。ホスト側の
+# 開発ツールはリポジトリルートの mise.toml が担当する。
 
 [tools]
 # Claude Code 本体とその実行に必要なもの
