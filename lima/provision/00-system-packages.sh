@@ -13,6 +13,11 @@ PACKAGES=(
   xz-utils
   build-essential
   pkg-config
+  # docker はデーモン + systemd 管理なので mise では扱えない。apt 側の担当。
+  # ソケットの所有者設定とサービス有効化は 30-docker.sh が行う。
+  docker.io
+  docker-buildx
+  docker-compose-v2
 )
 
 STAMP_DIR=/var/lib/sandbox-vm

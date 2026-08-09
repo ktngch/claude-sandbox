@@ -68,6 +68,7 @@ cd "$(ghq root)/github.com/owner/repo"
 | インターネット（NAT 経由、制限なし） | ホストの `~/.ssh`、`~/.aws` などの認証情報 |
 | VM 内で clone したコード | ホストの ssh-agent（`forwardAgent: false`） |
 | VM 内で `export` した GitHub の PAT | ホスト側のトークン（make 経由でも渡していない） |
+| VM 内の docker デーモンとコンテナ | ホストの docker（socket をホストへ転送していない） |
 
 egress は制限していないので、VM からインターネットへは自由に出られる。「ホストを守る」ための隔離であって「外部への通信を防ぐ」ものではない点に注意。
 
@@ -85,13 +86,27 @@ make ssh-config   # 表示された Include 行を ~/.ssh/config に追記する
 
 ## 入っているもの
 
-システムパッケージ（apt）は `curl` / `git` / `build-essential` など最小限のみ。ランタイムと CLI は [mise](https://mise.jdx.dev/) が管理する:
+システムパッケージ（apt）は `curl` / `git` / `build-essential` などの土台と docker のみ。ランタイムと CLI は [mise](https://mise.jdx.dev/) が管理する:
 
 `node` (lts), `claude`, `gh`, `ghq`, `ripgrep`, `fd`, `jq`, `python` (3.13), `uv`, `go`
 
 `ghq` の clone 先（`ghq.root`）は `~/workspace` に設定してあるので、`ghq get` したリポジトリは `~/workspace/github.com/owner/repo` に並ぶ。`make claude` はこの `~/workspace` で起動する。
 
 追加したいものは `lima/provision/mise.toml` に書いて `make reprovision`。
+
+### Docker
+
+`docker` / `docker compose` / `docker buildx` が VM 内で使える。デーモン + systemd 管理で mise では扱えないため、これだけは apt（`docker.io` ほか）で入れている。
+
+```sh
+make shell
+# VM 内
+docker run --rm hello-world
+```
+
+`sudo` も再ログインも要らない。`docker.socket` の `SocketUser` を VM のユーザーにしてあるため（`usermod -aG docker` 方式だと、Lima が SSH 接続を多重化する都合で追加したグループが次の VM 再起動まで効かない）。
+
+ソケットはホストへ転送していないので、**ホストの `docker` CLI からは見えない**。コンテナも VM 内で完結する（ホストのファイルシステムはそもそもマウントしていないので、`-v` でホストのディレクトリを渡すことはできない）。
 
 ## 構成
 
@@ -103,6 +118,7 @@ lima/provision/
   mise.toml                     ツール定義 → VM の ~/.config/mise/config.toml
   10-mise.sh                    mise 本体の導入とツールのインストール
   20-dev-env.sh                 ~/workspace / git identity / GitHub HTTPS 認証の設定
+  30-docker.sh                  docker.socket の所有者設定とサービス有効化
 ```
 
 プロビジョニングスクリプトは VM の**毎回のブートで実行される**ため、すべて冪等に書いてある。詳細は `CLAUDE.md` を参照。
