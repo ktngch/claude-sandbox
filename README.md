@@ -6,8 +6,16 @@ macOS 上に [Lima](https://lima-vm.io/) で隔離された Linux VM を立て�
 
 ## 必要なもの
 
-- macOS 13 以降 + Lima 2.0 以降（`brew install lima`）
-- Apple Silicon 推奨（`vmType: vz` を使うため）
+- macOS 13 以降 / Apple Silicon 推奨（`vmType: vz` を使うため）
+- [mise](https://mise.jdx.dev/)（`brew install mise`）
+
+Lima 本体（`limactl`）はルートの `mise.toml` で管理しているので、別途 `brew install lima` する必要はない。クローン後に一度だけ:
+
+```sh
+mise trust && mise install
+```
+
+これで `limactl` に加えて、`.claude/hooks/` が使う `shellcheck` / `jq` も揃う。
 
 ## 使い方
 
@@ -116,7 +124,7 @@ make ssh-config   # 表示された Include 行を ~/.ssh/config に追記する
 
 `ghq` の clone 先（`ghq.root`）は `~/workspace` に設定してあるので、`ghq get` したリポジトリは `~/workspace/github.com/owner/repo` に並ぶ。`make claude` はこの `~/workspace` で起動する。
 
-追加したいものは `lima/provision/mise.toml` に書いて `make reprovision`。
+追加したいものは `lima/provision/mise.vm.toml` に書いて `make reprovision`。ルートの `mise.toml` はホスト側の開発ツール用で別物なので、混同しないこと。
 
 ### Docker
 
@@ -136,10 +144,11 @@ docker run --rm hello-world
 
 ```
 Makefile                        1 コマンドのエントリポイント
+mise.toml                       ホスト側の開発ツール (limactl / shellcheck / jq)
 lima/claude-code.yaml           Lima テンプレート (VM のスペック・隔離設定)
 lima/provision/
   00-system-packages.sh         apt で土台のパッケージを入れる   (root)
-  mise.toml                     ツール定義 → VM の ~/.config/mise/config.toml
+  mise.vm.toml                  VM のツール定義 → VM の ~/.config/mise/config.toml
   10-mise.sh                    mise 本体の導入とツールのインストール
   20-dev-env.sh                 ~/workspace / git identity / GitHub HTTPS 認証の設定
   30-docker.sh                  docker.socket の所有者設定とサービス有効化

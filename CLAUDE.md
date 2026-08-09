@@ -26,7 +26,7 @@ make status         # 状態確認
 - **`lima/provision/` を変えた** → `make reprovision`。スクリプトを VM に転送して直接実行するので数十秒で終わる。
 - **`lima/claude-code.yaml` を変えた** → `make recreate`。Lima は作成時にテンプレートの内容（provision スクリプトの中身を含む）をインスタンス側 `~/.lima/<name>/lima.yaml` にコピーするため、既存インスタンスに `make up` してもリポジトリ側の yaml 変更は読まれない。
 
-`make reprovision` は yaml の `mode: data` に相当する処理（`mise.toml` → `~/.config/mise/config.toml` の配置）も自前で再現している。yaml 側の provision エントリを増減させたら、Makefile の `reprovision` ターゲットも合わせて更新すること。
+`make reprovision` は yaml の `mode: data` に相当する処理（`mise.vm.toml` → `~/.config/mise/config.toml` の配置）も自前で再現している。yaml 側の provision エントリを増減させたら、Makefile の `reprovision` ターゲットも合わせて更新すること。
 
 `20-dev-env.sh` だけは `dev-env` ターゲットに切り出してあり、`up` と `reprovision` の両方がこれを呼ぶ。ホストの git identity を env で流し込む唯一の経路なので、片方から外さないこと。
 
@@ -81,7 +81,18 @@ VM 内で走る claude 側（`--dangerously-skip-permissions`）にはハーネ�
 
 ## ツールの追加
 
-ランタイムや CLI は原則すべて mise 管理下に置く（`lima/provision/mise.toml`）。apt は mise で入らない土台（コンパイラ、共有ライブラリ等）だけに留める。追加前に `mise registry | grep <name>` で登録名を確認すること。
+mise の設定ファイルが 2 つある。**どちらに足すのかを取り違えないこと。**
+
+| ファイル | 何が入るか | 反映方法 |
+| --- | --- | --- |
+| `lima/provision/mise.vm.toml` | **VM 内**のランタイム・CLI | `make reprovision` |
+| `mise.toml`（リポジトリルート） | **ホスト側**でこのリポジトリを開発するためのツール（`limactl` / `shellcheck` / `jq`） | `mise install` |
+
+VM 側は使い捨て前提なので `latest` 中心、ホスト側は再現性を優先してバージョンをピン留めする、という使い分けにしている。ホスト側の `lima` を下げると既存インスタンス（`~/.lima/<name>`）が壊れうるので、上げる方向にだけ動かすこと。
+
+VM 側のランタイムや CLI は原則すべて mise 管理下に置く。apt は mise で入らない土台（コンパイラ、共有ライブラリ等）だけに留める。追加前に `mise registry | grep <name>` で登録名を確認すること（`limactl` ではなく `lima` のように、コマンド名と登録名がずれることがある）。
+
+`lima/provision/mise.vm.toml` を `mise.toml` に戻さないこと。その名前だと `lima/provision/` を cwd にしたときに mise がホスト側の設定として読んでしまい、VM 用のツール定義がホストに漏れる。
 
 docker（`docker.io` / `docker-buildx` / `docker-compose-v2`）はデーモン + systemd 管理で mise に載らないため、`00-system-packages.sh` の `PACKAGES` に置いている例外。同種の例外を足すときも、パッケージ追加は `PACKAGES` に入れる（sha256 スタンプが自動で再実行を引く）だけにして、サービス設定は別スクリプトに切り出す。
 
