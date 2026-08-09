@@ -1,0 +1,56 @@
+// JSON5 ではなく JSONC を使う理由: config:best-practices に含まれる :configMigration が
+// マイグレーション PR で JSON5 を plain JSON にダウングレードし、その際コメントを削除する
+// ことがある(Renovate 公式ドキュメントの警告)。このファイルは方針の意図をコメントに集約
+// しているため、公式が推奨する .jsonc を使ってコメントを保全する。
+//
+// 実行側は .github/workflows/renovate.yml (self-hosted)。platform / repositories だけ
+// あちらの env にあり、このファイルはポータブルなまま保つ。
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  // config:best-practices = config:recommended + docker:pinDigests
+  //   + helpers:pinGitHubActionDigests + :configMigration + :pinDevDependencies
+  //   + abandonments:recommended + security:minimumReleaseAgeNpm + :maintainLockFilesWeekly
+  // https://docs.renovatebot.com/upgrade-best-practices/
+  //
+  // helpers:pinGitHubActionDigests が書く `uses: owner/repo@<sha> # vX.Y.Z` は pinact の
+  // 期待する形と同じなので、CI の `pinact run --check` はそのまま通る。
+  // lockFileMaintenance (:maintainLockFilesWeekly 由来) はこのリポジトリにロックファイルが
+  // 無いので空回りする。homelab にある schedule 上書きはここでは不要。
+  "extends": [
+    "config:best-practices"
+  ],
+  "baseBranchPatterns": ["main"],
+  "timezone": "Asia/Tokyo",
+  "packageRules": [
+    {
+      // Renovate の mise manager の既定パターン (**/{,.}mise{,.*}.toml) は mise.vm.toml にも
+      // 一致してしまう。VM 側は使い捨て前提で latest 中心、ホスト側 (ルートの mise.toml) だけ
+      // 再現性のためにピン留めする、という CLAUDE.md の使い分けを崩さないよう明示的に落とす。
+      // このルールを消すと VM 内の python ピン等に黙って PR が飛ぶようになる。
+      "description": "VM 内のツール定義 (mise.vm.toml) は Renovate の管理対象にしない",
+      "matchFileNames": ["lima/provision/mise.vm.toml"],
+      "enabled": false
+    },
+    {
+      "description": "GitHub Actions の更新を1つのグループにまとめて PR ノイズを減らす",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions"
+    },
+    {
+      // バージョンが変わらない digest 更新、未ピンの参照に digest を付けるだけの pinDigest 更新、
+      // 既存バージョンを固定するだけの pin 更新(:pinDevDependencies 由来)は低リスクなので
+      // 自動マージする。
+      "description": "digest / pinDigest / pin 更新は自動マージする(CI green が前提)",
+      "matchUpdateTypes": ["digest", "pinDigest", "pin"],
+      "automerge": true
+    },
+    {
+      // 前提: Renovate の PR は必ず .github/workflows/** かルートの mise.toml を触るので、
+      // 既存 CI (actions-lint / shellcheck / lima-validate) の paths に必ず引っかかる。
+      // 「チェックが 1 つも走らないまま自動マージされる」状態にはならない。
+      "description": "patch 更新は自動マージする(CI green が前提)",
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    }
+  ]
+}
