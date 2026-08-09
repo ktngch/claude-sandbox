@@ -1,0 +1,89 @@
+# Claude Code を隔離環境で走らせるための Lima テンプレート。
+#
+#   $ make up        # 作成 + 起動 + プロビジョニング
+#   $ make claude    # VM 内の ~/workspace で claude を起動
+#
+# 隔離モデル: mounts を空にしてホストのファイルシステムを一切見せない。
+# ホストの ~/.ssh、他プロジェクトのソース、クラウド認証情報に到達する経路が無いことが、
+# VM 内で claude を --dangerously-skip-permissions で走らせられる根拠になっている。
+# mounts を足す変更はこの前提を壊すので、単独で行わないこと。
+
+minimumLimaVersion: 2.0.0
+
+base:
+# ubuntu-lts は 26.04 を指す。安定性を優先して 24.04 LTS を明示ピンする。
+# _default/mounts は「意図的に」継承しない (継承すると ~ が読み取り専用でマウントされる)。
+- template:_images/ubuntu-24.04
+
+vmType: vz # Virtualization.framework。Apple Silicon で QEMU より大幅に速い
+
+cpus: 4
+memory: "6GiB"
+disk: "40GiB" # thin provisioning。実使用分しかホストのディスクを消費しない
+
+# ★ 完全隔離。ホストのディレクトリは一切マウントしない。
+mounts: []
+
+# 起動時間短縮のため無効化。コンテナが要るときは
+# /opt/homebrew/share/lima/templates/docker.yaml の provision を移植する。
+containerd:
+  system: false
+  user: false
+
+ssh:
+  loadDotSSHPubKeys: false # ホストの ~/.ssh/*.pub を持ち込まない
+  forwardAgent: false # ホストの ssh-agent を VM に晒さない
+
+# VM 内の git identity。既に設定済みなら 20-dev-env.sh は上書きしない。
+param:
+  gitUserName: ""
+  gitUserEmail: ""
+
+# 実行順は data -> system -> user (cloud-init の scripts_per_boot 内)。
+# mise.toml を mode: data に置くだけで 10-mise.sh より先に配置される。
+# いずれも毎ブート実行されるため、各スクリプト側で冪等性を担保している。
+provision:
+- mode: system
+  file: provision/00-system-packages.sh
+
+- mode: data
+  path: "{{.Home}}/.config/mise/config.toml"
+  file: provision/mise.toml
+  owner: "{{.User}}"
+  permissions: "0644"
+  overwrite: true # リポジトリ側の mise.toml を唯一の真実にする
+
+- mode: user
+  file: provision/10-mise.sh
+
+- mode: user
+  file: provision/20-dev-env.sh
+
+probes:
+- mode: readiness
+  description: mise-managed tools (node, claude) to be installed
+  script: |
+    #!/bin/bash
+    set -eu -o pipefail
+    export PATH="${HOME}/.local/share/mise/shims:${PATH}"
+    # 初回ブートは node / python / go のダウンロードで数分かかる
+    if ! timeout 900s bash -c 'until command -v node >/dev/null 2>&1 && command -v claude >/dev/null 2>&1; do sleep 5; done'; then
+      echo >&2 "node / claude are not installed yet"
+      exit 1
+    fi
+  hint: |
+    mise によるツールのインストールが完了しませんでした。
+    ゲスト内の /var/log/cloud-init-output.log を確認してください:
+      limactl shell claude-code -- sudo tail -100 /var/log/cloud-init-output.log
+
+message: |
+  VM の準備ができました。
+
+    make claude   # ~/workspace で claude を起動 (初回はブラウザ認証が走ります)
+    make shell    # VM にログイン
+
+  認証情報は VM のディスク (~/.claude) に残るので、再起動後の再ログインは不要です。
+
+  ホストのエディタから触りたい場合は VS Code の Remote-SSH で接続してください:
+    ssh config: {{.Dir}}/ssh.config   (Host は lima-{{.Name}})
+    `make ssh-config` が ~/.ssh/config への Include 行を表示します。
