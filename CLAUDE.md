@@ -11,6 +11,7 @@ macOS 上に Lima で Claude Code 実行用の隔離 VM を立てるための設
 ```sh
 make validate       # Lima テンプレートの検証。YAML やスクリプトを触ったら必ず最初に通す
 make up             # 作成 (初回のみ) + 起動 + プロビジョニング
+make claude         # up してから VM 内の ~/workspace で claude を起動する (この VM の主目的)
 make reprovision    # lima/provision/ の変更だけを再適用する
 make recreate       # 破棄して作り直す
 make status         # 状態確認
@@ -56,6 +57,7 @@ Lima の provision は cloud-init の `scripts_per_boot` として登録され�
 - `20-dev-env.sh` — 書き込みの種類ごとに冪等性の担保が違う。`user.name` / `user.email` は `GIT_USER_NAME` / `GIT_USER_EMAIL` が**非空のときだけ**上書きする（ホスト側を単一の真実にするため。ブート経路では env が空なので VM 内の設定が残る）。`init.defaultBranch` は未設定のときだけ書く。`ghq.root` と credential helper 関連は単一値なので `git config --global` で上書きし続けてよい。`url.insteadOf` は多値キーなので `--replace-all` → `--add` の順で書く（`--add` だけだとブートごとに増殖する）。`~/.profile` への `GIT_TERMINAL_PROMPT=0` は `# >>> sandbox-vm git >>>` マーカーの `grep -qF` で判定する。`~/.claude` には触れない（対話ログインの成果物が消えるため）。
 - `30-docker.sh` — `docker.socket` の drop-in は**内容を比較して差分があるときだけ**書き、書き換えたときだけ `daemon-reload` とサービス再起動を行う（毎ブート restart するとブートが遅くなる）。ソケットの権限は `usermod -aG docker` ではなく `SocketUser` で与える。補助グループは SSH 認証時に確定し、Lima は SSH 接続を ControlMaster で多重化するため、グループ追加は `make reprovision` 直後のセッションに反映されない（VM を再起動するまで permission denied になる）。
 - `40-aws-vault.sh` — `~/.profile` のブロックは、マーカーの有無ではなく**中身を比較して差分があるときだけ** `sed` で消してから書き直す（`20-dev-env.sh` の `grep -qF` 方式だと、後から export を足したときに既存 VM へ伝播しない）。
+- `50-starship.sh` — `40-aws-vault.sh` と同じ**中身の比較**方式。書き込み先は `~/.bashrc`（不変条件 #4 の例外）。ブロックは削除してから末尾に追記し直すので、`10-mise.sh` が書く mise ブロックより必ず後ろに来る（`mise activate` 後の PATH でないと `command -v starship` が通らない）。
 
 ### 3. provision スクリプト内で `{{` を 2 個続けて書かない
 
@@ -64,6 +66,18 @@ Lima の provision は cloud-init の `scripts_per_boot` として登録され�
 ### 4. PATH は `~/.profile` 側で通す
 
 Ubuntu の `~/.bashrc` は非対話シェルで冒頭 return するため、`limactl shell <name> -- <cmd>` のような実行では `.bashrc` に書いた `mise activate` が効かない。`10-mise.sh` は `~/.profile` に mise の shims ディレクトリを PATH 追加し、`.bashrc` 側は対話シェル用に `mise activate bash` を置く、という二段構えになっている。片方だけ直すと非対話実行やプローブが壊れる。
+
+例外は**対話シェルにしか意味の無いもの**だけ。`50-starship.sh` のプロンプト設定は `~/.bashrc` にのみ書く（非対話実行に持ち込む必要が無く、持ち込むと出力を汚す）。逆に env や PATH を `.bashrc` 側だけに書かないこと。
+
+## 編集時のガード (`.claude/hooks/`)
+
+上の不変条件のうち機械判定できるものは、`.claude/settings.json` の hooks で編集時に検査している。**ガードを回避するのではなく、指摘された不変条件の側を直すこと。**
+
+- `lima-guard.sh` (PostToolUse / `lima/**`) — `limactl validate` の **警告を失敗として扱う**。不変条件 #3 のとおり limactl は警告を出しても exit 0 なので、`make validate` だけでは検知できない。あわせて不変条件 #1（`mounts: []`、`loadDotSSHPubKeys`、`forwardAgent`、`_default/mounts`）も検査する。
+- `shell-lint.sh` (PostToolUse / `*.sh`) — `bash -n` + `shellcheck`。既存の provision スクリプトは全数クリーンなので、指摘が出たら新しく入れた側が原因。
+- `no-secrets.sh` (PreToolUse) — PAT / AWS パスフレーズの実値がホスト側のファイルに入るのを止める（不変条件 #1）。README や provision の `export GITHUB_TOKEN=github_pat_...` のような**例示は通す**ので、プレースホルダを実値らしい文字列に書き換えないこと。
+
+VM 内で走る claude 側（`--dangerously-skip-permissions`）にはハーネスを持ち込まない。隔離はあくまで「ホストへの到達経路が無いこと」で担保する。
 
 ## ツールの追加
 
