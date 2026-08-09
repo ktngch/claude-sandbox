@@ -15,6 +15,20 @@ make claude         # up してから VM 内の ~/workspace で claude を起動
 make reprovision    # lima/provision/ の変更だけを再適用する
 make recreate       # 破棄して作り直す
 make status         # 状態確認
+make shell          # VM にログインする
+make stop           # 停止する (ディスクは残る)
+make destroy        # 削除する (VM 内のデータと claude の認証情報も消える)
+make ssh-config     # VS Code Remote-SSH 用の Include 行を表示する
+make help           # ターゲット一覧
+```
+
+`make validate` は `limactl validate` を素で叩くだけなので、**警告が出ても成功する**（不変条件 #3）。合否は編集時の hook と CI が判定する。
+
+hook は「今編集したファイル」にしか走らないので、まとめて直したあとは CI と同じ全数検査をローカルで回す:
+
+```sh
+git ls-files -z '*.sh' | xargs -0 -n1 bash -n && git ls-files -z '*.sh' | xargs -0 shellcheck
+actionlint -color && GH_TOKEN=$(gh auth token) zizmor .github/workflows && pinact run --check
 ```
 
 テストフレームワークは無い。検証は実際に VM を起動して確かめる。
@@ -80,6 +94,21 @@ Ubuntu の `~/.bashrc` は非対話シェルで冒頭 return するため、`lim
 
 VM 内で走る claude 側（`--dangerously-skip-permissions`）にはハーネスを持ち込まない。隔離はあくまで「ホストへの到達経路が無いこと」で担保する。
 
+## CI (`.github/workflows/`)
+
+hook と同じ検査を、PR でリポジトリ全体に対してもう一度回す。**検査の実体は hook 側に置き、CI はそれを呼ぶだけにしてある**（`lima-validate.yml` は偽の hook ペイロードを `lima-guard.sh` に流し込んで判定させる）。不変条件を足すときに直すのは hook だけでよい。
+
+| ワークフロー | 何を見るか | `paths:` |
+| --- | --- | --- |
+| `lima-validate.yml` | `limactl validate` + `lima-guard.sh` | `lima/**`, `.claude/hooks/lima-guard.sh`, `mise.toml` |
+| `shellcheck.yml` | `git ls-files '*.sh'` 全数に `bash -n` + `shellcheck` | `**.sh`, `mise.toml` |
+| `actions-lint.yml` | `actionlint` + `zizmor`（トークン付きでオンライン監査も）+ `pinact run --check` | `.github/workflows/**`, `mise.toml` |
+| `renovate.yml` | 依存更新。`schedule` / `workflow_dispatch` のみ | — |
+
+`paths:` はワークフロー単位にしか書けないので、検査ごとにファイルを分けてある。全ワークフローが `paths:` に `mise.toml` を含むのは、ツールのピンがそこにあるため。**hook や検査を足したら、対応するワークフローの `paths:` も足すこと。**
+
+`paths:` を絞りすぎないこと。`renovate.jsonc` の automerge は「Renovate の PR は必ず `.github/workflows/**` かルートの `mise.toml` を触るので、CI が最低 1 つは走る」という前提の上に成り立っている。この前提が崩れると、チェックゼロのまま自動マージされる PR が生まれる。
+
 ## GitHub Actions の `uses:` は SHA ピンを維持する
 
 タグは動かせるので、`actions/checkout@v5` のような参照はサプライチェーン上の穴になる。`uses:` はすべて `owner/repo@<40桁SHA> # vX.Y.Z` の形にしてあり、zizmor の `unpinned-uses` と CI の `pinact run --check` が両方から見張っている。
@@ -103,7 +132,7 @@ mise の設定ファイルが 2 つある。**どちらに足すのかを取り�
 | ファイル | 何が入るか | 反映方法 | Renovate |
 | --- | --- | --- | --- |
 | `lima/provision/mise.vm.toml` | **VM 内**のランタイム・CLI | `make reprovision` | 対象外（`renovate.jsonc` で無効化） |
-| `mise.toml`（リポジトリルート） | **ホスト側**でこのリポジトリを開発するためのツール（`limactl` / `shellcheck` / `jq`） | `mise install` | 対象 |
+| `mise.toml`（リポジトリルート） | **ホスト側**でこのリポジトリを開発するためのツール（`limactl` / `shellcheck` / `jq` / `actionlint` / `zizmor` / `pinact`） | `mise install` | 対象 |
 
 VM 側は使い捨て前提なので `latest` 中心、ホスト側は再現性を優先してバージョンをピン留めする、という使い分けにしている。ホスト側の `lima` を下げると既存インスタンス（`~/.lima/<name>`）が壊れうるので、上げる方向にだけ動かすこと。
 
@@ -112,6 +141,8 @@ VM 側のランタイムや CLI は原則すべて mise 管理下に置く。apt
 `lima/provision/mise.vm.toml` を `mise.toml` に戻さないこと。その名前だと `lima/provision/` を cwd にしたときに mise がホスト側の設定として読んでしまい、VM 用のツール定義がホストに漏れる。
 
 docker（`docker.io` / `docker-buildx` / `docker-compose-v2`）はデーモン + systemd 管理で mise に載らないため、`00-system-packages.sh` の `PACKAGES` に置いている例外。同種の例外を足すときも、パッケージ追加は `PACKAGES` に入れる（sha256 スタンプが自動で再実行を引く）だけにして、サービス設定は別スクリプトに切り出す。
+
+`lima/claude-sandbox.yaml` の readiness probe は、mise shims の `node` と `claude`（最大 900 秒待つ）、および `docker info` の疎通（180 秒）を待ち受ける。`mise.vm.toml` からこれらを外したり docker をやめたりすると、`make up` はタイムアウトまで待ってから失敗する。ツールを**減らす**ときは probe も合わせて直すこと。
 
 ## aws-vault のバックエンドを secret-service にしない
 
