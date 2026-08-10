@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 macOS 上に Lima で Claude Code 実行用の隔離 VM を立てるための設定リポジトリ。アプリケーションコードは無く、成果物は Lima テンプレート・シェルスクリプト・Makefile のみ。利用者向けの説明は `README.md`、このリポジトリを編集する人向けの手引きは `CONTRIBUTING.md` にある。
 
+`CONTRIBUTING.md` は CLAUDE.md の要約版で、コマンド・hooks 一覧・CI 表・Renovate・SHA ピン・mise の 2 ファイル表が**意図的に重複している**（人間向けに短く、こちらに背景と不変条件の全文がある）。これらを直すときは両方直すこと。
+
 ## コマンド
 
 ```sh
@@ -22,6 +24,10 @@ make ssh-config     # VS Code Remote-SSH 用の Include 行を表示する
 make help           # ターゲット一覧
 ```
 
+既定ゴールは `up`。**引数なしの `make` は VM を作成・起動する**（初回は 10 分程度）。`make shell` も `up` に依存しているので、停止中の VM は自動で起動する。
+
+インスタンス名と git identity は make 変数で上書きできる: `make up INSTANCE=other-vm GIT_USER_EMAIL=work@example.com`。既定はそれぞれ `claude-sandbox` とホストの `git config`。
+
 `make validate` は `limactl validate` を素で叩くだけなので、**警告が出ても成功する**（不変条件 #3）。合否は編集時の hook と CI が判定する。
 
 hook は「今編集したファイル」にしか走らないので、まとめて直したあとは CI と同じ全数検査をローカルで回す:
@@ -35,6 +41,14 @@ printf '{"tool_input":{"file_path":"%s"}}' "$PWD/lima/claude-sandbox.yaml" | .cl
 最後の 1 行は `lima-validate.yml` がやっていることと同じ（偽の hook ペイロードを流し込む）。hook はパスからリポジトリルートを求めるので、`file_path` は**絶対パス**で渡すこと。
 
 テストフレームワークは無い。検証は実際に VM を起動して確かめる。
+
+## 変更の入れ方
+
+`main` に直接コミットしない。作業ブランチ（`feat/…` / `docs/…` / `chore/…`）を切って PR にし、マージコミットで入れる。
+
+コミット件名は日本語の conventional commits（`docs: README に隔離構成の mermaid 図を追加する`）。型は `feat` / `docs` / `chore` / `fix` を使い、体言止めにせず動詞の終止形（〜する）で終える。Renovate の PR だけは英語（`chore(deps): update dependency pinact to v4.1.1`）だが、これは上流の既定なので合わせに行かない。
+
+コメントとドキュメントも日本語で書く。
 
 ## 変更を反映する経路が 2 つある
 
