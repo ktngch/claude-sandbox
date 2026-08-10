@@ -4,7 +4,7 @@ macOS 上に [Lima](https://lima-vm.io/) で隔離された Linux VM を立て�
 
 ## 目的
 
-Claude Code を `--dangerously-skip-permissions`（権限確認をすべてスキップするモード）で常用するために、ホストと VM のあいだに壁を 1 枚立てる。守りたいものは 2 つある。
+ホストと VM のあいだに壁を 1 枚立て、その中で Claude Code を動かす。守りたいものは 2 つある。
 
 ### 1. ホスト（macOS）を破壊的な操作から守る
 
