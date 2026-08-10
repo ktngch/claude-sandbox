@@ -124,10 +124,9 @@ message: |
 
     make shell    # VM にログイン
 
-  ログインしたら VM の中で claude を起動してください
-  (完全隔離なので --dangerously-skip-permissions を付けて常用できます):
+  ログインしたら VM の中で claude を起動してください:
 
-    claude --dangerously-skip-permissions
+    claude
 
   初回はブラウザ認証が走ります。認証情報は VM のディスク (~/.claude) に残るので、
   再起動後の再ログインは不要です。
