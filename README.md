@@ -21,23 +21,11 @@ VM からはそのどれにも到達できない。ホストの `~/.ssh` も `~/
 ## 必要なもの
 
 - macOS 13 以降 / Apple Silicon 推奨（`vmType: vz` を使うため）
-- [mise](https://mise.jdx.dev/)（`brew install mise`）
+- [Lima](https://lima-vm.io/) 2.0 以上（`limactl` が PATH にあること）
 
-Lima 本体（`limactl`）はルートの `mise.toml` で管理しているので、別途 `brew install lima` する必要はない。クローン後に一度だけ:
+Lima の入れ方は問わない。`brew install lima` でも、[公式リリース](https://github.com/lima-vm/lima/releases)のバイナリでも、[mise](https://mise.jdx.dev/) でも構わない（mise を選ぶ場合はシェルでの有効化が要る → [CONTRIBUTING.md](CONTRIBUTING.md)）。バージョンの下限はテンプレートの `minimumLimaVersion: 2.0.0` に合わせてある。
 
-```sh
-mise trust && mise install
-```
-
-これで `limactl` に加えて、`.claude/hooks/` と CI が使う `shellcheck` / `jq` / `actionlint` / `zizmor` / `pinact` も揃う。
-
-依存（`mise.toml` のツールと GitHub Actions の `uses:`）の更新は Renovate が毎日 05:00 JST に見て PR にする。設定は `renovate.jsonc`、実行は `.github/workflows/renovate.yml`。digest / pin / patch の更新は CI が green なら自動でマージされ、それ以外は Dependency Dashboard の issue から操作できる。VM 内のツール（`lima/provision/mise.vm.toml`）は使い捨て前提なので対象外。
-
-GitHub Actions の `uses:` は SHA でピン留めしてある。新しく足すときは手で SHA を書かず、`pinact` に解決させる（既存分の更新は Renovate がやる）:
-
-```sh
-GITHUB_TOKEN=$(gh auth token) pinact run
-```
+必要なのはこれだけで、あとは `make up` が VM の中に必要なツールを入れる。
 
 ## 使い方
 
@@ -178,7 +166,7 @@ docker run --rm hello-world
 
 ```
 Makefile                        1 コマンドのエントリポイント
-mise.toml                       ホスト側の開発ツール (limactl / shellcheck / jq / actionlint / zizmor / pinact)
+mise.toml                       ホスト側の開発ツール (CONTRIBUTING.md 参照)
 lima/claude-sandbox.yaml        Lima テンプレート (VM のスペック・隔離設定)
 lima/provision/
   00-system-packages.sh         apt で土台のパッケージを入れる   (root)
@@ -194,3 +182,7 @@ lima/provision/
 ```
 
 プロビジョニングスクリプトは VM の**毎回のブートで実行される**ため、すべて冪等に書いてある。詳細は `CLAUDE.md` を参照。
+
+## このリポジトリに手を入れる
+
+Lima テンプレートや provision スクリプト、CI を編集するときのセットアップ（ホスト側の開発ツール・編集時のガード・依存の更新）は [CONTRIBUTING.md](CONTRIBUTING.md) にまとめてある。VM を使うだけならここまでで足りる。

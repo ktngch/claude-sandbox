@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## このリポジトリについて
 
-macOS 上に Lima で Claude Code 実行用の隔離 VM を立てるための設定リポジトリ。アプリケーションコードは無く、成果物は Lima テンプレート・シェルスクリプト・Makefile のみ。ユーザー向けの説明は `README.md` にある。
+macOS 上に Lima で Claude Code 実行用の隔離 VM を立てるための設定リポジトリ。アプリケーションコードは無く、成果物は Lima テンプレート・シェルスクリプト・Makefile のみ。利用者向けの説明は `README.md`、このリポジトリを編集する人向けの手引きは `CONTRIBUTING.md` にある。
 
 ## コマンド
 
