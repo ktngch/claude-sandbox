@@ -6,17 +6,19 @@ macOS 上に [Lima](https://lima-vm.io/) で隔離された Linux VM を立て�
 
 ```mermaid
 flowchart LR
-  subgraph host["ホスト (macOS)"]
-    make["make up / make shell<br/>(limactl)"]
-    editor["エディタ<br/>(VS Code Remote-SSH)"]
-    hostsecrets["~/.ssh<br/>~/.aws<br/>他プロジェクトのソース"]
-  end
+  subgraph machine["開発マシン（Mac）"]
+    subgraph host["ホスト (macOS)"]
+      make["make up / make shell<br/>(limactl)"]
+      editor["エディタ<br/>(VS Code Remote-SSH)"]
+      hostsecrets["~/.ssh<br/>~/.aws<br/>他プロジェクトのソース"]
+    end
 
-  subgraph vm["隔離 VM (Lima / Ubuntu 24.04)"]
-    claude["Claude Code"]
-    ws["~/workspace<br/>(ghq で clone したコード)"]
-    tools["mise のツール / docker"]
-    creds["この VM 専用の認証情報<br/>GITHUB_TOKEN (env)<br/>aws-vault (file backend)"]
+    subgraph vm["隔離 VM (Lima / Ubuntu 24.04)"]
+      claude["Claude Code"]
+      ws["~/workspace<br/>(ghq で clone したコード)"]
+      tools["mise のツール / docker"]
+      creds["この VM 専用の認証情報<br/>GITHUB_TOKEN (env)<br/>aws-vault (file backend)"]
+    end
   end
 
   net["GitHub / AWS / インターネット"]
