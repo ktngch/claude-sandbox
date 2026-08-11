@@ -7,21 +7,15 @@
 # unpinned-uses や artipacked はオフラインでも効く (それらは CI で改めて全部回る)。
 set -uo pipefail
 
-payload=$(cat)
-file=$(printf '%s' "$payload" | jq -r '.tool_response.filePath // .tool_input.file_path // empty')
+# shellcheck source=/dev/null
+. "$(dirname "$0")/_common.sh"
+
+hook_read_payload
+file=$(hook_target_file)
 case "$file" in */.github/workflows/*.yml | */.github/workflows/*.yaml) ;; *) exit 0 ;; esac
 [ -f "$file" ] || exit 0
 
-problems=""
-if command -v actionlint >/dev/null 2>&1; then
-  al=$(actionlint "$file" 2>&1)          || problems+="actionlint の指摘:\n${al}\n"
-fi
-if command -v zizmor >/dev/null 2>&1; then
-  zz=$(zizmor --offline "$file" 2>&1)    || problems+="zizmor の指摘:\n${zz}\n"
-fi
+run_check 'actionlint の指摘' actionlint "$file"
+run_check 'zizmor の指摘' zizmor --offline "$file"
 
-if [ -n "$problems" ]; then
-  printf 'claude-sandbox harness guard (%s):\n%b' "$(basename "$file")" "$problems" >&2
-  exit 2
-fi
-exit 0
+report "$(basename "$file")"

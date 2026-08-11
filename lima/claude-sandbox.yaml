@@ -43,11 +43,12 @@ ssh:
 # mise.vm.toml / sheldon.plugins.toml を mode: data に置くだけで、それを読む
 # 10-mise.sh / 60-sheldon.sh より先に配置される。
 # いずれも毎ブート実行されるため、各スクリプト側で冪等性を担保している。
-# user 内の番号順は rc ファイルへの追記順でもある:
-#   05 (土台) -> 10 (mise) -> 50 (starship) -> 60 (sheldon)。
-# starship と sheldon の配線は mise の PATH が通った後でなければ効かない。さらに
-# sheldon が読む zsh-syntax-highlighting は "最後に source されること" を要求するので、
-# 60 は末尾のまま動かさないこと。
+#
+# user のスクリプトはシェルの設定を ~/.zprofile / ~/.zshrc に直接書かず、
+# 05-zsh.sh が用意した ~/.config/claude-sandbox/{zprofile,zshrc}.d/ に
+# 自分の番号を冠した断片を置く。ログイン時にローダが番号順に source するので、
+# source 順を決めるのはここの並びではなく断片のファイル名。
+# (05 は他より先に走る必要がある。ローダとディレクトリを作るのがこのスクリプトのため)
 provision:
 - mode: system
   file: provision/00-system-packages.sh
@@ -92,7 +93,7 @@ probes:
   description: mise-managed tools (node, claude) to be installed
   script: |
     #!/bin/bash
-    set -eu -o pipefail
+    set -euo pipefail
     export PATH="${HOME}/.local/share/mise/shims:${PATH}"
     # 初回ブートは node / python / go のダウンロードで数分かかる
     if ! timeout 900s bash -c 'until command -v node >/dev/null 2>&1 && command -v claude >/dev/null 2>&1; do sleep 5; done'; then
@@ -108,7 +109,7 @@ probes:
   description: docker daemon to be reachable from the lima user
   script: |
     #!/bin/bash
-    set -eu -o pipefail
+    set -euo pipefail
     if ! timeout 180s bash -c 'until docker info >/dev/null 2>&1; do sleep 3; done'; then
       echo >&2 "docker is not reachable yet"
       exit 1

@@ -169,7 +169,9 @@ make ssh-config   # 表示された Include 行を ~/.ssh/config に追記する
 
 `node` (lts), `claude`, `gh`, `ghq`, `ripgrep`, `fd`, `jq`, `starship`, `sheldon`, `python` (3.13), `uv`, `go`, `aws-vault`, `awscli`
 
-ログインシェルは **zsh**（`05-zsh.sh` が `chsh` する）。履歴・補完・Emacs キーバインドは設定済みで、`starship` のプロンプトも `make shell` などの対話シェルで自動的に有効になる（`50-starship.sh` が `~/.zshrc` に配線する）。starship の設定ファイルは置いていないので既定のプリセットで動く。
+ログインシェルは **zsh**（`05-zsh.sh` が `chsh` する）。履歴・補完・Emacs キーバインドは設定済みで、`starship` のプロンプトも `make shell` などの対話シェルで自動的に有効になる（`50-starship.sh` が配線する）。starship の設定ファイルは置いていないので既定のプリセットで動く。
+
+シェルの設定は `~/.zprofile` / `~/.zshrc` に直接書かれておらず、`~/.config/claude-sandbox/zprofile.d/` と `~/.config/claude-sandbox/zshrc.d/` に置かれた断片をローダが番号順に読み込む形になっている。これらは `make reprovision` のたびに上書きされるので、**自分の設定は rc ファイル本体（ローダのマーカーブロックの外）に書くこと。**
 
 zsh のプラグインは [sheldon](https://github.com/rossmacarthur/sheldon) が管理していて（`60-sheldon.sh` が配線する）、既定で以下が有効:
 

@@ -44,6 +44,10 @@ mise の設定ファイルは 2 つあり、**どちらに足すのかを取り�
 
 Lima は作成時にテンプレートの内容を `~/.lima/<name>/lima.yaml` にコピーするため、既存インスタンスに `make up` してもリポジトリ側の yaml 変更は読まれない。理由と例外は `CLAUDE.md` に詳しく書いてある。
 
+provision スクリプトを 1 本足すときに触るのは yaml だけでよい。Makefile の `LOGIN_SCRIPTS` が `lima/provision/*.sh` を番号順に glob している。特別扱い（root で叩く / env を渡す）が要るときだけ `BOOTSTRAP_SCRIPTS` と `SKIP_SCRIPTS` を直す。`mode: data` の配布ファイルを足したときは `DATA_FILES` も直すこと。
+
+VM のシェル設定は `~/.zprofile` / `~/.zshrc` に直接書かず、`~/.config/claude-sandbox/{zprofile,zshrc}.d/` に自分の番号を冠した断片を置く（`05-zsh.sh` が書くローダが番号順に source する）。詳細は `CLAUDE.md` 不変条件 #4。
+
 ## 編集時のガード（`.claude/hooks/`）
 
 Claude Code で編集すると、`.claude/settings.json` の hooks が該当ファイルに対して検査を走らせる。**ガードを回避するのではなく、指摘された側を直すこと。**
@@ -52,6 +56,8 @@ Claude Code で編集すると、`.claude/settings.json` の hooks が該当フ�
 - `shell-lint.sh`（`*.sh`）— `bash -n` + `shellcheck`
 - `workflow-lint.sh`（`.github/workflows/*.yml`）— `actionlint` + `zizmor --offline`
 - `no-secrets.sh`（全書き込み）— PAT や AWS パスフレーズの実値がホスト側のファイルに入るのを止める
+
+ペイロードの読み取りと報告は `_common.sh`（source 専用、実行ビット無し）に括り出してある。hook を足すときの注意点は `CLAUDE.md` に書いてある（`# shellcheck source=/dev/null` を忘れると hook が自分自身を落とす）。
 
 `make validate` は `limactl validate` を素で叩くだけで、**警告が出ても成功する**。合否は hook と CI が判定する。
 

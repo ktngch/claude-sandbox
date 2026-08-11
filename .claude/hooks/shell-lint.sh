@@ -3,19 +3,17 @@
 # provision スクリプトは VM 内で root / 毎ブート走るので、静的解析の価値が高い。
 set -uo pipefail
 
-payload=$(cat)
-file=$(printf '%s' "$payload" | jq -r '.tool_response.filePath // .tool_input.file_path // empty')
+# hook は shellcheck を -x 無しで走らせるので、source=/dev/null で SC1091 を抑える。
+# (これが無いと shell-lint.sh 自身が自分と workflow-lint.sh を落とす)
+# shellcheck source=/dev/null
+. "$(dirname "$0")/_common.sh"
+
+hook_read_payload
+file=$(hook_target_file)
 case "$file" in *.sh) ;; *) exit 0 ;; esac
 [ -f "$file" ] || exit 0
 
-problems=""
-syn=$(bash -n "$file" 2>&1)       || problems+="bash -n が失敗しました:\n${syn}\n"
-if command -v shellcheck >/dev/null 2>&1; then
-  sc=$(shellcheck "$file" 2>&1)   || problems+="shellcheck の指摘:\n${sc}\n"
-fi
+run_check 'bash -n が失敗しました' bash -n "$file"
+run_check 'shellcheck の指摘' shellcheck "$file"
 
-if [ -n "$problems" ]; then
-  printf 'claude-sandbox harness guard (%s):\n%b' "$(basename "$file")" "$problems" >&2
-  exit 2
-fi
-exit 0
+report "$(basename "$file")"
