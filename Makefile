@@ -8,6 +8,19 @@ PROVISION := lima/provision
 GIT_USER_NAME  ?= $(shell git config --get user.name)
 GIT_USER_EMAIL ?= $(shell git config --get user.email)
 
+# reprovision で流す provision スクリプト。実行順は $(TEMPLATE) と同じファイル名の番号順。
+#   BOOTSTRAP_SCRIPTS ... 素の bash で叩くもの (下の reprovision に直書き)
+#   SKIP_SCRIPTS      ... ここでは走らせないもの (dev-env が env 付きで叩く)
+#   LOGIN_SCRIPTS     ... 残り全部。スクリプトを足しても Makefile は触らなくてよい
+BOOTSTRAP_SCRIPTS := 00-system-packages.sh 05-zsh.sh
+SKIP_SCRIPTS      := 20-dev-env.sh
+LOGIN_SCRIPTS     := $(filter-out $(BOOTSTRAP_SCRIPTS) $(SKIP_SCRIPTS),$(notdir $(sort $(wildcard $(PROVISION)/*.sh))))
+
+# $(TEMPLATE) の provision mode: data を reprovision 経路で再現するためのリスト。
+# 形式は <リポジトリ内のファイル名>:<VM の HOME からの相対パス>。yaml 側と対応させること。
+DATA_FILES := mise.vm.toml:.config/mise/config.toml \
+              sheldon.plugins.toml:.config/sheldon/plugins.toml
+
 .DEFAULT_GOAL := up
 .PHONY: up shell dev-env reprovision recreate stop destroy status validate ssh-config help
 
@@ -34,6 +47,9 @@ shell: up
 #
 # ホストの git identity を VM に反映する唯一の経路。up と reprovision の両方から呼ばれる。
 # PAT はここを通さない (ユーザーが VM 内で環境変数にセットする)。
+#
+# up からも単独で呼ばれるので、reprovision の copy -r とは別に自分でコピーする。
+# reprovision 経由だと /tmp/provision/20-dev-env.sh にも同じものが置かれるが、走るのはこちら。
 dev-env:
 	@limactl copy '$(PROVISION)/20-dev-env.sh' '$(INSTANCE):/tmp/20-dev-env.sh'
 	limactl shell '$(INSTANCE)' -- env \
@@ -46,17 +62,22 @@ dev-env:
 # ログインシェル経由 (zsh -lc) にしているのは ~/.zprofile の PATH を効かせるため。
 # 00 と 05 だけは素の bash で叩く。zsh をまだ持たない VM に対して zsh -lc を使うと
 # ブートストラップで詰むうえ、この 2 つは mise の PATH を必要としない。
+#
+# ループの中で || exit 1 しているのは、make がレシピ 1 行を 1 つの sh -c で走らせる
+# (= set -e が効かない) ため。これが無いと途中のスクリプトが失敗しても最後まで進む。
 reprovision:
 	limactl copy -r '$(PROVISION)' '$(INSTANCE):/tmp/'
 	limactl shell '$(INSTANCE)' -- sudo bash /tmp/provision/00-system-packages.sh
 	limactl shell '$(INSTANCE)' -- bash /tmp/provision/05-zsh.sh
-	limactl shell '$(INSTANCE)' -- zsh -lc 'install -D -m 0644 /tmp/provision/mise.vm.toml ~/.config/mise/config.toml'
-	limactl shell '$(INSTANCE)' -- zsh -lc 'install -D -m 0644 /tmp/provision/sheldon.plugins.toml ~/.config/sheldon/plugins.toml'
-	limactl shell '$(INSTANCE)' -- zsh -lc 'bash /tmp/provision/10-mise.sh'
-	limactl shell '$(INSTANCE)' -- zsh -lc 'bash /tmp/provision/30-docker.sh'
-	limactl shell '$(INSTANCE)' -- zsh -lc 'bash /tmp/provision/40-aws-vault.sh'
-	limactl shell '$(INSTANCE)' -- zsh -lc 'bash /tmp/provision/50-starship.sh'
-	limactl shell '$(INSTANCE)' -- zsh -lc 'bash /tmp/provision/60-sheldon.sh'
+	@for pair in $(DATA_FILES); do \
+		src=$${pair%%:*}; dst=$${pair#*:}; \
+		echo "==> $$dst"; \
+		limactl shell '$(INSTANCE)' -- zsh -lc "install -D -m 0644 /tmp/provision/$$src \$$HOME/$$dst" || exit 1; \
+	done
+	@for script in $(LOGIN_SCRIPTS); do \
+		echo "==> $$script"; \
+		limactl shell '$(INSTANCE)' -- zsh -lc "bash /tmp/provision/$$script" || exit 1; \
+	done
 	@$(MAKE) --no-print-directory dev-env
 
 ## recreate: VM を破棄して作り直す ($(TEMPLATE) 自体の変更を反映するときに使う)

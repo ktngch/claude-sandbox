@@ -7,8 +7,11 @@
 #   2. 隔離モデル (不変条件 #1) が yaml から抜けていないかを確認する。
 set -uo pipefail
 
-payload=$(cat)
-file=$(printf '%s' "$payload" | jq -r '.tool_response.filePath // .tool_input.file_path // empty')
+# shellcheck source=/dev/null
+. "$(dirname "$0")/_common.sh"
+
+hook_read_payload
+file=$(hook_target_file)
 [ -n "$file" ] || exit 0
 
 root=$(cd "$(dirname "$file")" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null) || exit 0
@@ -16,8 +19,8 @@ case "$file" in "$root"/lima/*) ;; *) exit 0 ;; esac
 
 yaml="$root/lima/claude-sandbox.yaml"
 [ -f "$yaml" ] || exit 0
-problems=""
 
+# limactl validate は「警告を出しつつ exit 0」を区別する必要があるので run_check は使わない。
 if ! out=$(limactl validate "$yaml" 2>&1); then
   problems+="limactl validate が失敗しました:\n$(printf '%s' "$out" | tail -5)\n"
 elif printf '%s' "$out" | grep -q 'level=warning'; then
@@ -35,8 +38,4 @@ grep -qE '^\s*loadDotSSHPubKeys: false' "$yaml" || problems+="ssh.loadDotSSHPubK
 grep -qE '^\s*forwardAgent: false' "$yaml"      || problems+="ssh.forwardAgent が false ではありません (不変条件 #1)。\n"
 ! grep -q 'template:_default/mounts' "$yaml"    || problems+="base に template:_default/mounts が入っています (ホームが RO マウントされます)。\n"
 
-if [ -n "$problems" ]; then
-  printf 'claude-sandbox harness guard:\n%b' "$problems" >&2
-  exit 2
-fi
-exit 0
+report

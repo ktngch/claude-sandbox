@@ -7,8 +7,13 @@
 # 変数名への言及やプレースホルダ (github_pat_... 等) は通し、実値だけを弾く。
 set -uo pipefail
 
-payload=$(cat)
-body=$(printf '%s' "$payload" | jq -r '[.tool_input.content?, .tool_input.new_string?] | map(select(. != null)) | join("\n")')
+# PreToolUse は「deny 決定の JSON を出して exit 0」という別の契約なので、
+# _common.sh からはペイロードの読み取りだけを借りる (report は使わない)。
+# shellcheck source=/dev/null
+. "$(dirname "$0")/_common.sh"
+
+hook_read_payload
+body=$(hook_field '[.tool_input.content?, .tool_input.new_string?] | map(select(. != null)) | join("\n")')
 [ -n "$body" ] || exit 0
 
 hits=""

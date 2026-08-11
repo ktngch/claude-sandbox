@@ -6,7 +6,6 @@
 # Makefile の dev-env ターゲットからも env 付きで直接叩かれる。どちらでも冪等。
 set -euo pipefail
 
-GIT_MARKER='# >>> claude-sandbox git >>>'
 CREDENTIAL_HELPER="${HOME}/.local/bin/git-credential-github-token"
 
 mkdir -p "${HOME}/workspace"
@@ -34,6 +33,8 @@ git config --global ghq.root "${HOME}/workspace"
 #    ホストの認証情報を持ち込まない隔離モデルなので、ユーザーが VM 内で
 #    export した fine-grained PAT を読むだけの credential helper を置く。
 #    トークンはディスクに一切書かれない。
+#    毎ブート丸ごと上書きする。内容を比較するまでもなく冪等で、helper を直したときに
+#    既存 VM へ確実に伝播する。
 install -d "${HOME}/.local/bin"
 cat >"${CREDENTIAL_HELPER}" <<'EOF'
 #!/bin/bash
@@ -61,14 +62,11 @@ git config --global --add url."https://github.com/".insteadOf 'ssh://git@github.
 # 6. トークン未設定のまま push すると git がユーザー名入力で待ち続けてしまう。
 #    非対話で即エラーにして、エージェントがハングしないようにする。
 #    PATH と同じ理由で ~/.zshrc ではなく ~/.zprofile 側に置く (CLAUDE.md 不変条件 #4)。
-if ! grep -qF "$GIT_MARKER" "${HOME}/.zprofile" 2>/dev/null; then
-  echo "claude-sandbox: adding GIT_TERMINAL_PROMPT=0 to ~/.zprofile"
-  cat >>"${HOME}/.zprofile" <<EOF
-
-${GIT_MARKER}
+FRAGMENT="${HOME}/.config/claude-sandbox/zprofile.d/20-git.zsh"
+install -d -m 0755 "$(dirname "$FRAGMENT")"
+cat >"$FRAGMENT" <<'EOF'
 export GIT_TERMINAL_PROMPT=0
-# <<< claude-sandbox git <<<
 EOF
-fi
+chmod 0644 "$FRAGMENT"
 
 echo "claude-sandbox: dev env ready (workspace: ${HOME}/workspace)"

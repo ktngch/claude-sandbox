@@ -57,7 +57,9 @@ printf '{"tool_input":{"file_path":"%s"}}' "$PWD/lima/claude-sandbox.yaml" | .cl
 - **`lima/provision/` を変えた** → `make reprovision`。スクリプトを VM に転送して直接実行するので数十秒で終わる。
 - **`lima/claude-sandbox.yaml` を変えた** → `make recreate`。Lima は作成時にテンプレートの内容（provision スクリプトの中身を含む）をインスタンス側 `~/.lima/<name>/lima.yaml` にコピーするため、既存インスタンスに `make up` してもリポジトリ側の yaml 変更は読まれない。
 
-`make reprovision` は yaml の `mode: data` に相当する処理（`mise.vm.toml` → `~/.config/mise/config.toml`、`sheldon.plugins.toml` → `~/.config/sheldon/plugins.toml` の配置）も自前で再現している。yaml 側の provision エントリを増減させたら、Makefile の `reprovision` ターゲットも合わせて更新すること。
+`make reprovision` は yaml の `mode: data` に相当する処理（`mise.vm.toml` → `~/.config/mise/config.toml`、`sheldon.plugins.toml` → `~/.config/sheldon/plugins.toml` の配置）も自前で再現している。この対応表は Makefile の `DATA_FILES` にある（`<リポジトリ内のファイル名>:<VM の HOME からの相対パス>`）。yaml 側の `mode: data` を増減させたらここも直すこと。
+
+**`mode: user` のスクリプトを増減させても Makefile は触らなくてよい。** `LOGIN_SCRIPTS` が `lima/provision/*.sh` を glob して番号順に並べ、`BOOTSTRAP_SCRIPTS`（素の bash で叩く `00` / `05`）と `SKIP_SCRIPTS`（`dev-env` が env 付きで叩く `20`）だけを除外している。特別扱いが要るスクリプトを足すときだけ、この 2 つのリストを直す。
 
 `20-dev-env.sh` だけは `dev-env` ターゲットに切り出してあり、`up` と `reprovision` の両方がこれを呼ぶ。ホストの git identity を env で流し込む唯一の経路なので、片方から外さないこと。
 
@@ -84,15 +86,16 @@ AWS のクレデンシャルは **aws-vault の file バックエンド**だけ�
 Lima の provision は cloud-init の `scripts_per_boot` として登録されるため、VM を再起動するたびに全スクリプトが走る。処理を追加するときは必ずガードを付ける:
 
 - `00-system-packages.sh` — パッケージリストの sha256 をスタンプファイル名に埋め込み、`/var/lib/claude-sandbox/apt.<hash>` があれば `apt-get update` ごとスキップする。リストを変えるとハッシュが変わって自動的に再実行される。
-- `05-zsh.sh` — `~/.zprofile` と `~/.zshrc` の**土台**（PATH の重複除去・履歴・補完・キーバインド）を**中身の比較**方式で書き、最後に `chsh` する。`chsh` は `getent passwd` の 7 番目のフィールドと比較して差分があるときだけ。rc ファイルを書いてから `chsh` するのは、`~/.zshrc` などが 1 つも無い状態で対話 zsh が起動すると `zsh-newuser-install` のウィザードが出るため。番号が `10-mise.sh` より小さいのは rc ファイルへの追記順（土台 → mise → starship）を作るためで、この順序に依存があるので入れ替えないこと。`chsh` が効くのは **ssh 経由のログイン**（VS Code Remote-SSH、`ssh lima-<name>`）と VM 内の `$SHELL` だけ。`make shell` は別経路なので不変条件 #5 を参照。
+- `05-zsh.sh` — `~/.zprofile` と `~/.zshrc` の**本体**を所有する唯一のスクリプト。土台（PATH の重複除去・履歴・補完・キーバインド）と**断片ローダ**を**中身の比較**方式で書き、最後に `chsh` する。rc ファイルを丸ごと上書きせず `write_block()` でマーカー範囲だけ書き換えるのは、VM 内でユーザーが手で足した内容を壊さないため。`chsh` は `getent passwd` の 7 番目のフィールドと比較して差分があるときだけ。rc ファイルを書いてから `chsh` するのは、`~/.zshrc` などが 1 つも無い状態で対話 zsh が起動すると `zsh-newuser-install` のウィザードが出るため。番号が最小なのは、他のスクリプトが書き込む断片ディレクトリとローダをここで用意するため。`chsh` が効くのは **ssh 経由のログイン**（VS Code Remote-SSH、`ssh lima-<name>`）と VM 内の `$SHELL` だけ。`make shell` は別経路なので不変条件 #5 を参照。
+  - 断片方式に移行する前の VM 向けに、旧マーカーブロック（`mise` / `git` / `aws-vault` / `starship` / `sheldon`）を消す `strip_legacy_block` が入っている。移行済みの VM では no-op なので、十分に行き渡ったら消してよい。
 
 `chsh` の結果は `30-docker.sh` の補助グループと同じく SSH 認証時に確定する。Lima の `ssh.config` は `ControlMaster auto` + `ControlPersist yes` で 1 本の接続を多重化し続け、sshd は認証時にキャッシュした passwd エントリを使い回すため、`make reprovision` 直後のセッションの `$SHELL` は古いままになる。反映させるには接続を張り直す（`limactl shell --reconnect <name>`、`ssh -F ~/.lima/<name>/ssh.config -O exit lima-<name>`、または VM 再起動）。
-- `10-mise.sh` — mise 本体は `-x` チェック、シェル統合は `# >>> claude-sandbox mise >>>` マーカーの**中身の比較**で判定。`mise install` は既存バージョンをスキップするので**あえてスタンプを置かない**（置くと `latest` 指定の `claude` が上流更新に追随できなくなる）。
-- `20-dev-env.sh` — 書き込みの種類ごとに冪等性の担保が違う。`user.name` / `user.email` は `GIT_USER_NAME` / `GIT_USER_EMAIL` が**非空のときだけ**上書きする（ホスト側を単一の真実にするため。ブート経路では env が空なので VM 内の設定が残る）。`init.defaultBranch` は未設定のときだけ書く。`ghq.root` と credential helper 関連は単一値なので `git config --global` で上書きし続けてよい。`url.insteadOf` は多値キーなので `--replace-all` → `--add` の順で書く（`--add` だけだとブートごとに増殖する）。`~/.zprofile` への `GIT_TERMINAL_PROMPT=0` は `# >>> claude-sandbox git >>>` マーカーの `grep -qF` で判定する。`~/.claude` には触れない（対話ログインの成果物が消えるため）。
+- `10-mise.sh` — mise 本体は `-x` チェック、シェル統合は断片ファイルの丸ごと上書き。`mise install` は既存バージョンをスキップするので**あえてスタンプを置かない**（置くと `latest` 指定の `claude` が上流更新に追随できなくなる）。
+- `20-dev-env.sh` — 書き込みの種類ごとに冪等性の担保が違う。`user.name` / `user.email` は `GIT_USER_NAME` / `GIT_USER_EMAIL` が**非空のときだけ**上書きする（ホスト側を単一の真実にするため。ブート経路では env が空なので VM 内の設定が残る）。`init.defaultBranch` は未設定のときだけ書く。`ghq.root` と credential helper 関連は単一値なので `git config --global` で上書きし続けてよい。`url.insteadOf` は多値キーなので `--replace-all` → `--add` の順で書く（`--add` だけだとブートごとに増殖する）。credential helper 本体と `GIT_TERMINAL_PROMPT=0` の断片は丸ごと上書き。`~/.claude` には触れない（対話ログインの成果物が消えるため）。
 - `30-docker.sh` — `docker.socket` の drop-in は**内容を比較して差分があるときだけ**書き、書き換えたときだけ `daemon-reload` とサービス再起動を行う（毎ブート restart するとブートが遅くなる）。ソケットの権限は `usermod -aG docker` ではなく `SocketUser` で与える。補助グループは SSH 認証時に確定し、Lima は SSH 接続を ControlMaster で多重化するため、グループ追加は `make reprovision` 直後のセッションに反映されない（VM を再起動するまで permission denied になる）。
-- `40-aws-vault.sh` — `~/.zprofile` のブロックは、マーカーの有無ではなく**中身を比較して差分があるときだけ** `sed` で消してから書き直す（`20-dev-env.sh` の `grep -qF` 方式だと、後から export を足したときに既存 VM へ伝播しない）。
-- `50-starship.sh` — `40-aws-vault.sh` と同じ**中身の比較**方式。書き込み先は `~/.zshrc`（不変条件 #4 の例外）。ブロックは削除してから末尾に追記し直すので、`10-mise.sh` が書く mise ブロックより必ず後ろに来る（`mise activate` 後の PATH でないと `command -v starship` が通らない）。
-- `60-sheldon.sh` — `50-starship.sh` と同じ**中身の比較**方式で `~/.zshrc` に書く（不変条件 #4 の例外）。番号が最後なのは、`sheldon source` が読み込む zsh-syntax-highlighting が upstream の要求で「最後に source される」必要があるため（`starship init zsh` が定義する ZLE ウィジェットより後でなければならない）。**この位置から動かさないこと。** プラグインの取得は `sheldon lock` を provision 時に走らせて済ませる（対話ログインまで持ち越すと、初回の `sheldon source` が clone の進捗を出して「`~/.zshrc` は何も出力しない」を破る）。`sheldon lock` は clone 済みのソースをスキップする（更新は `--update` のときだけ）ので、`mise install` と同じ理由でスタンプは置かない。
+- `40-aws-vault.sh` — `~/.zprofile` 側の断片を丸ごと上書きする。
+- `50-starship.sh` — `~/.zshrc` 側の断片を丸ごと上書きする（不変条件 #4 の例外）。断片名の番号が `10-mise.zsh` より大きいので、`mise activate` 後の PATH で `command -v starship` が評価される。
+- `60-sheldon.sh` — `50-starship.sh` と同じ。断片名の番号が最大なのは、`sheldon source` が読み込む zsh-syntax-highlighting が upstream の要求で「最後に source される」必要があるため（`starship init zsh` が定義する ZLE ウィジェットより後でなければならない）。**`zshrc.d/` の中で末尾から動かさないこと。** プラグインの取得は `sheldon lock` を provision 時に走らせて済ませる（対話ログインまで持ち越すと、初回の `sheldon source` が clone の進捗を出して「`~/.zshrc` は何も出力しない」を破る）。`sheldon lock` は clone 済みのソースをスキップする（更新は `--update` のときだけ）ので、`mise install` と同じ理由でスタンプは置かない。
 
 ### 3. provision スクリプト内で `{{` を 2 個続けて書かない
 
@@ -102,7 +105,18 @@ Lima の provision は cloud-init の `scripts_per_boot` として登録され�
 
 ### 4. env と PATH は `~/.zprofile` 側で通す
 
-VM のログインシェルは zsh（`05-zsh.sh` が `chsh` する）。zsh は `~/.zshrc` を**対話シェルでしか読まない**ため、`limactl shell <name> -- zsh -lc <cmd>` のような実行では `.zshrc` に書いた `mise activate` が効かない。`10-mise.sh` は `~/.zprofile` に mise の shims ディレクトリを PATH 追加し、`.zshrc` 側は対話シェル用に `mise activate zsh` を置く、という二段構えになっている。片方だけ直すと非対話実行やプローブが壊れる。
+VM のログインシェルは zsh（`05-zsh.sh` が `chsh` する）。zsh は `~/.zshrc` を**対話シェルでしか読まない**ため、`limactl shell <name> -- zsh -lc <cmd>` のような実行では `.zshrc` に書いた `mise activate` が効かない。`10-mise.sh` は `~/.zprofile` 側に mise の shims ディレクトリを PATH 追加し、`.zshrc` 側は対話シェル用に `mise activate zsh` を置く、という二段構えになっている。片方だけ直すと非対話実行やプローブが壊れる。
+
+**書き込み先は rc ファイル本体ではなく断片ディレクトリ。** `05-zsh.sh` 以外のスクリプトは `~/.zprofile` / `~/.zshrc` に直接追記せず、
+
+```
+~/.config/claude-sandbox/zprofile.d/NN-<name>.zsh
+~/.config/claude-sandbox/zshrc.d/NN-<name>.zsh
+```
+
+に断片を 1 枚置く。`05-zsh.sh` が rc ファイルに書くローダが `*.zsh(N)` を glob して**ファイル名の番号順**に source する（`(N)` は NULL_GLOB。断片もディレクトリも無い状態でエラーにならない）。断片は丸ごと上書きするだけなので、`sed` のマーカー範囲操作も「中身を比較する」判定も要らず、冪等性が構造的に保証される。
+
+この方式にしているのは **source 順を実行順から切り離すため**。各スクリプトが rc に直接追記していた頃は「削除してから末尾に追記し直す」ことで「provision の実行順 = rc 内の順序」を作っていたので、スクリプトをリネームすると静かに壊れた。今は断片のファイル名だけが順序を決める。**新しくシェル設定を足すときは、rc ファイルに直接書かず断片を置くこと。**
 
 **`~/.zshenv` には書かないこと。** zsh の読み込み順は
 
@@ -112,7 +126,7 @@ VM のログインシェルは zsh（`05-zsh.sh` が `chsh` する）。zsh は 
 
 で、Ubuntu の `zsh-common` が置く `/etc/zprofile` が `emulate sh -c 'source /etc/profile'` を実行し、`/etc/profile` が PATH を**無条件に上書きする**。`~/.zshenv` はそれより前に走るので、そこに書いた mise の shims は消える。`~/.zprofile` だけが安全な置き場所。
 
-例外は**対話シェルにしか意味の無いもの**だけ。`50-starship.sh` のプロンプト設定は `~/.zshrc` にのみ書く（非対話実行に持ち込む必要が無く、持ち込むと出力を汚す）。逆に env や PATH を `.zshrc` 側だけに書かないこと。
+例外は**対話シェルにしか意味の無いもの**だけ。`50-starship.sh` のプロンプト設定は `zshrc.d/` 側にのみ置く（非対話実行に持ち込む必要が無く、持ち込むと出力を汚す）。逆に env や PATH を `zshrc.d/` 側だけに置かないこと。
 
 `~/.zshrc` は Claude Code のシェルスナップショット経由で非対話でも source されうるので、**何も出力しない**こと（`50-starship.sh` の `command -v starship` ガードと同じ理由）。
 
@@ -140,6 +154,13 @@ zsh 化したのは VM の**ログインシェル**であって、provision ス�
 - `shell-lint.sh` (PostToolUse / `*.sh`) — `bash -n` + `shellcheck`。既存の provision スクリプトは全数クリーンなので、指摘が出たら新しく入れた側が原因。
 - `workflow-lint.sh` (PostToolUse / `.github/workflows/*.yml`) — `actionlint` + `zizmor --offline`。`--offline` なのは編集のたびにネットワークと GitHub トークンに依存させないため。オンライン監査（`known-vulnerable-actions` 等）と `pinact` は CI 側（`actions-lint.yml`）でしか回らない。
 - `no-secrets.sh` (PreToolUse) — PAT / AWS パスフレーズの実値がホスト側のファイルに入るのを止める（不変条件 #1）。README や provision の `export GITHUB_TOKEN=github_pat_...` のような**例示は通す**ので、プレースホルダを実値らしい文字列に書き換えないこと。
+
+ペイロードの読み取り・指摘の蓄積・報告は `_common.sh` に括り出してある（`hook_read_payload` / `hook_field` / `hook_target_file` / `run_check` / `report`）。先頭が `_` なので `.claude/settings.json` からは呼ばれず、実行ビットも立てていない（source 専用）。hook 側で気をつける点:
+
+- `. "$(dirname "$0")/_common.sh"` の直前に `# shellcheck source=/dev/null` を置くこと。hook は `shellcheck` を `-x` 無しで走らせるので、これが無いと SC1091 で hook が自分自身を落とす。
+- `$hook_payload` を直に参照しないこと（代入が `_common.sh` 側にあるので SC2154 が出る）。`hook_field '<jq 式>'` を通す。
+- 行頭の `# shellcheck` はディレクティブとして解釈される。コメントでルール名に触れるときは行頭に置かない。
+- `_common.sh` は `set -e` を持たない。hook は指摘を集めてからまとめて報告する作りなので、途中の非ゼロ終了で止めてはいけない。
 
 VM 内で走る claude 側（`--dangerously-skip-permissions`）にはハーネスを持ち込まない。隔離はあくまで「ホストへの到達経路が無いこと」で担保する。
 
