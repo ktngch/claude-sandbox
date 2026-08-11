@@ -65,9 +65,14 @@ hook は「今編集したファイル」にしか走らないので、まとめ
 
 ```sh
 git ls-files -z '*.sh' | xargs -0 -n1 bash -n && git ls-files -z '*.sh' | xargs -0 shellcheck
-actionlint -color && GH_TOKEN=$(gh auth token) zizmor .github/workflows && pinact run --check
+: "${GITHUB_TOKEN:?export GITHUB_TOKEN してから流すこと}" \
+  && actionlint -color && zizmor .github/workflows && pinact run --check
 printf '{"tool_input":{"file_path":"%s"}}' "$PWD/lima/claude-sandbox.yaml" | .claude/hooks/lima-guard.sh
 ```
+
+`GITHUB_TOKEN` はホスト側で export してある前提で、`gh auth token` では取り直さない（既に環境にある値をコマンドラインに書き戻すと、`set -x` のトレース等に実値が乗る経路が増えるため）。`GH_TOKEN` ではなく `GITHUB_TOKEN` に寄せているのは、この名前だけが `gh` / `zizmor` / `pinact` の 3 つとも読むから（`pinact` は `GH_TOKEN` を読まない）。
+
+未設定のまま流すと zizmor はオンライン監査を黙って諦め、pinact は未認証 API に落ちて**失敗せずに検査だけが薄くなる**ので、先頭の `: "${GITHUB_TOKEN:?...}"` で落としている。**これらの行は `set -x` 付きで実行しないこと。** 詳細は `CLAUDE.md` の「トークンは `GITHUB_TOKEN` に統一し、環境から継承させる」。
 
 最後の 1 行は `lima-validate.yml` がやっていることと同じ（偽の hook ペイロードを流し込む）。hook はパスからリポジトリルートを求めるので、`file_path` は**絶対パス**で渡すこと。
 
@@ -103,7 +108,7 @@ npx --yes --package renovate -- renovate-config-validator --strict --no-global r
 **SHA を手で書かないこと。** 既存分の更新は Renovate がやる。新しく `uses:` を足したときだけ、タグを書いた状態でローカルから流して解決させる:
 
 ```sh
-GITHUB_TOKEN=$(gh auth token) pinact run
+: "${GITHUB_TOKEN:?export GITHUB_TOKEN してから流すこと}" && pinact run
 ```
 
 横のバージョンコメントもここで一緒に付く（手書きするとコメントと SHA がズレて `--check` が落ちる）。メジャータグを持たないアクションはフルタグ（`@v46.2.1`）で書いてから流すこと。

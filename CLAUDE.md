@@ -34,11 +34,32 @@ hook は「今編集したファイル」にしか走らないので、まとめ
 
 ```sh
 git ls-files -z '*.sh' | xargs -0 -n1 bash -n && git ls-files -z '*.sh' | xargs -0 shellcheck
-actionlint -color && GH_TOKEN=$(gh auth token) zizmor .github/workflows && pinact run --check
+: "${GITHUB_TOKEN:?export GITHUB_TOKEN してから流すこと}" \
+  && actionlint -color && zizmor .github/workflows && pinact run --check
 printf '{"tool_input":{"file_path":"%s"}}' "$PWD/lima/claude-sandbox.yaml" | .claude/hooks/lima-guard.sh
 ```
 
 最後の 1 行は `lima-validate.yml` がやっていることと同じ（偽の hook ペイロードを流し込む）。hook はパスからリポジトリルートを求めるので、`file_path` は**絶対パス**で渡すこと。
+
+### トークンは `GITHUB_TOKEN` に統一し、環境から継承させる
+
+**ホスト側で `GITHUB_TOKEN` を export してあることを前提にする。`gh auth token` で取り直さないこと。** 既に環境にある値をコマンドラインに書き戻すと、`set -x` のトレースやシェル履歴に実値が乗る経路が増える。継承させるだけなら、秘密はプロセスの環境にしか存在しない。
+
+変数名を `GITHUB_TOKEN` に寄せているのは、**この名前だけが 3 つのツール全部に通る**ため。`GH_TOKEN` を使うと `pinact` のために詰め替えが要り、そこがまた実値をコマンドラインに書く箇所になる。
+
+| ツール | 読む変数 |
+| --- | --- |
+| `gh` | `GH_TOKEN` / `GITHUB_TOKEN` |
+| `zizmor` | `GH_TOKEN` / `GITHUB_TOKEN` / `ZIZMOR_GITHUB_TOKEN` |
+| `pinact` | **`GITHUB_TOKEN` のみ**（`GH_TOKEN` は読まない。ダミー値で実測） |
+
+VM 側も README のとおり `GITHUB_TOKEN` なので、ホストと VM で名前が揃う。
+
+未設定のまま流すと、`zizmor` はオンライン監査を黙って諦め（実測: 終了コード 0）、`pinact` は未認証 API にフォールバックしてレート制限（60 req/h）に当たるまで気付けない。どちらも**失敗せずに検査だけが薄くなる**ので、`: "${GITHUB_TOKEN:?...}"` で先頭で落とす。値が無効な場合は zizmor が 401 で落ちるため、そちらは黙って通ることはない。
+
+`${VAR:?message}` は未設定または空のときだけ message を stderr に出して非ゼロを返す（**変数の値は出力しない**）。非対話シェルではそこで終了し、対話シェルではシェルを殺さずにその行のコマンドリストを中断する（zsh / bash とも実測済み）。空文字も弾きたいので `:-` ではなく `:?` を使うこと。
+
+**これらの行を `set -x` 付きで実行しないこと。** `set -x` は展開後のコマンドをトレースするので、コマンド置換や環境変数プレフィックスの実値がそのまま出力に乗る。出力の切り分けが目的なら `echo` でラベルを挟む。
 
 テストフレームワークは無い。検証は実際に VM を起動して確かめる。
 
@@ -183,7 +204,13 @@ hook と同じ検査を、PR でリポジトリ全体に対してもう一度回
 
 タグは動かせるので、`actions/checkout@v5` のような参照はサプライチェーン上の穴になる。`uses:` はすべて `owner/repo@<40桁SHA> # vX.Y.Z` の形にしてあり、zizmor の `unpinned-uses` と CI の `pinact run --check` が両方から見張っている。
 
-**SHA を手で書かないこと。** 既存の `uses:` の更新は Renovate（後述）が自動で PR にする。新しく `uses:` を足したときだけ、ローカルで `GITHUB_TOKEN=$(gh auth token) pinact run` を流して解決させる（横のバージョンコメントもここで一緒に付く。手書きするとコメントと SHA がズレて `--check` が落ちる）。タグを書いて pinact に解決させる方式なので、`renovatebot/github-action` のようにメジャータグ（`@v46`）を持たないアクションは、フルタグ（`@v46.2.1`）で書いてから流すこと。
+**SHA を手で書かないこと。** 既存の `uses:` の更新は Renovate（後述）が自動で PR にする。新しく `uses:` を足したときだけ、ローカルで解決させる:
+
+```sh
+: "${GITHUB_TOKEN:?export GITHUB_TOKEN してから流すこと}" && pinact run
+```
+
+横のバージョンコメントもここで一緒に付く（手書きするとコメントと SHA がズレて `--check` が落ちる）。タグを書いて pinact に解決させる方式なので、`renovatebot/github-action` のようにメジャータグ（`@v46`）を持たないアクションは、フルタグ（`@v46.2.1`）で書いてから流すこと。
 
 `actions/checkout` には `persist-credentials: false` を付ける（zizmor の `artipacked`）。このリポジトリの CI は push しないので、`.git/config` に認証情報を残す理由が無い。
 

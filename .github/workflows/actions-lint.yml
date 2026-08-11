@@ -47,16 +47,18 @@ jobs:
     - name: actionlint
       run: actionlint -color
 
-    # GH_TOKEN があるとオンライン監査 (known-vulnerable-actions 等) も有効になる。
+    # トークンがあるとオンライン監査 (known-vulnerable-actions 等) も有効になる。
+    # 無いと zizmor は監査を黙って諦めて exit 0 するので、渡し忘れに気付けない。
     # 読み取りしかしないので既定の contents: read で足りる。
+    # 変数名はローカル手順 (CLAUDE.md) と揃えて GITHUB_TOKEN にする。
     - name: zizmor
       run: zizmor .github/workflows
       env:
-        GH_TOKEN: ${{ github.token }}
+        GITHUB_TOKEN: ${{ github.token }}
 
     # --check は書き換えずに差分の有無だけを見る。タグ参照が紛れ込んだり
     # SHA とバージョンコメントがズレたりすると失敗する。直すときはローカルで
-    # `GITHUB_TOKEN=$(gh auth token) pinact run` を流すこと (手で SHA を書かない)。
+    # `pinact run` を流すこと (手で SHA を書かない)。
     - name: pinact
       run: pinact run --check
       env:
