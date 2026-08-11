@@ -10,12 +10,38 @@ MISE_BIN="${HOME}/.local/bin/mise"
 MISE_CONFIG="${HOME}/.config/mise/config.toml"
 FRAGMENT_ROOT="${HOME}/.config/claude-sandbox"
 
-# 1. mise 本体 — 未導入のときだけ取得する
-if [ ! -x "$MISE_BIN" ]; then
-  echo "claude-sandbox: installing mise"
-  curl -fsSL https://mise.run | sh
+# mise 本体のバージョンは固定する (暫定)。
+#
+# 2026.8.4 の aqua backend に regression があり、claude (aqua:anthropics/claude-code) が
+#   Failed to install aqua:anthropics/claude-code@latest: relative URL without a base
+# で落ちる。aqua registry 側は version_overrides でベースの type: http から
+# type: github_release に切り替える構造になっており、2026.8.4 は override 側の
+# type / asset を適用できず URL を空のまま組み立てている (実測: 2.1.126 は入るが 2.1.227 は落ちる)。
+#
+# これを踏むと mise install が非ゼロで終わってこのスクリプトが set -e で死ぬ。
+# Lima は provision の失敗を WARNING だけで流すので後続は動き、claude の shim だけが
+# 存在しない VM ができる。その結果 claude-sandbox.yaml の readiness probe が
+# 900 秒待ってから失敗し、make up がタイムアウトまで待たされた末に落ちる。
+#
+# 上流が直ったらこのピンを外して latest 追随に戻すこと:
+#   https://github.com/jdx/mise/pull/11804
+MISE_VERSION_PIN=v2026.7.18
+
+# 1. mise 本体 — ピンと違うバージョンのときだけ取得する。
+#    「未導入のときだけ」にすると、既に壊れたバージョンが入っている VM を
+#    make reprovision で直せない。`mise --version` の出力は
+#    "2026.7.18 linux-arm64 (2026-07-30)" の形なので先頭フィールドだけ見る。
+#    stderr を捨てているのは、ピンが上流より古い間ずっと自己更新の警告が出るため。
+CURRENT_MISE=""
+if [ -x "$MISE_BIN" ]; then
+  CURRENT_MISE=$("$MISE_BIN" --version 2>/dev/null | awk '{print $1}')
+fi
+
+if [ "$CURRENT_MISE" != "${MISE_VERSION_PIN#v}" ]; then
+  echo "claude-sandbox: installing mise ${MISE_VERSION_PIN} (current: ${CURRENT_MISE:-none})"
+  curl -fsSL https://mise.run | MISE_VERSION="$MISE_VERSION_PIN" sh
 else
-  echo "claude-sandbox: mise already found ($("$MISE_BIN" --version))"
+  echo "claude-sandbox: mise already at ${CURRENT_MISE}"
 fi
 
 # 2a. ~/.zprofile 側に PATH を通す。
