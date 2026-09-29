@@ -59,7 +59,7 @@ jobs:
         permission-statuses: write
 
     - name: Self-hosted Renovate
-      uses: renovatebot/github-action@e09d604f8f803bb527bd8321ed5be06c460b8682 # v46.2.2
+      uses: renovatebot/github-action@6d26fcf0275dc65624cbc3d51fe78bc773f98321 # v46.3.6
       env:
         RENOVATE_PLATFORM: github
         RENOVATE_REPOSITORIES: ${{ github.repository }}
