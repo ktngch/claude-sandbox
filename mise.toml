@@ -5,7 +5,7 @@
 # こちらは既存 VM の状態や CI の再現性と対応するので、バージョンをピン留めする。
 
 [tools]
-lima       = "2.2.0"  # limactl。make up / make validate の実体 (registry 名は lima であって limactl ではない)
+lima       = "2.2.1"  # limactl。make up / make validate の実体 (registry 名は lima であって limactl ではない)
 shellcheck = "0.11.0" # .claude/hooks/shell-lint.sh が使う
 jq         = "1.8.2"  # .claude/hooks/ の全スクリプトが必須にしている
 
