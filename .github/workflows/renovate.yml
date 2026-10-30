@@ -46,7 +46,7 @@ jobs:
     # ので、App ID / Client ID のどちらを入れてあっても挙動は同じ。
     - name: Generate a token
       id: app-token
-      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+      uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
       with:
         app-id: ${{ secrets.RENOVATE_APP_ID }}
         private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
@@ -59,7 +59,7 @@ jobs:
         permission-statuses: write
 
     - name: Self-hosted Renovate
-      uses: renovatebot/github-action@e09d604f8f803bb527bd8321ed5be06c460b8682 # v46.2.2
+      uses: renovatebot/github-action@43b963bf5dd5e57f1f95c59765a018d782870211 # v46.3.11
       env:
         RENOVATE_PLATFORM: github
         RENOVATE_REPOSITORIES: ${{ github.repository }}
